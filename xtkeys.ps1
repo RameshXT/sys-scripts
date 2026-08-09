@@ -297,22 +297,40 @@ function Install-AutoHotkey {
     }
 
     # ── Direct download fallback ───────────────────────────────────────────────
-    # The AHK v2 installer is NSIS-based and requires /S (capital S) for
-    # silent mode — /silent is NOT a valid flag and causes a visible dialog.
+    # AHK v2 uses a custom installer. The correct silent flag is /silent.
     $setup = Join-Path $env:TEMP "ahk-v${AHK_WINGET_VER}-setup.exe"
 
     Write-Progress -Activity 'AutoHotkey Setup' -Status "Downloading AutoHotkey v$AHK_WINGET_VER..." -PercentComplete 55
     Write-Step "Downloading AutoHotkey v$AHK_WINGET_VER from GitHub Releases (HTTPS, pinned)..."
     Invoke-SecureDownloadWithProgress $AHK_DIRECT_URL $setup "Downloading AutoHotkey v$AHK_WINGET_VER"
 
-    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Running installer silently (/S)...' -PercentComplete 80
+    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Running installer silently...' -PercentComplete 80
     Write-Step 'Running AutoHotkey installer silently...'
-    Start-Process -FilePath $setup -ArgumentList '/S' -Wait -NoNewWindow
+    Start-Process -FilePath $setup -ArgumentList '/silent' -Wait -NoNewWindow
     Start-Sleep -Seconds 3   # give the installer time to finalize file writes
     Remove-Item $setup -Force -ErrorAction SilentlyContinue
 
     Write-Progress -Activity 'AutoHotkey Setup' -Status 'Verifying installation...' -PercentComplete 95
+
+    # Primary scan (candidates + PATH)
     $exe = Get-AhkExe
+
+    # Broad fallback: walk the AHK install tree to find any exe we might have missed
+    if ($null -eq $exe -or -not (Test-AhkVersionOk $exe)) {
+        $ahkRoot = 'C:\Program Files\AutoHotkey'
+        if (Test-Path $ahkRoot) {
+            $found = Get-ChildItem -Path $ahkRoot -Recurse -Filter 'AutoHotkey*.exe' -ErrorAction SilentlyContinue |
+                     Where-Object { $_.Name -notmatch 'UX|Compiler|installer' } |
+                     ForEach-Object {
+                         $v2 = Get-AhkVersion $_.FullName
+                         if ($null -ne $v2 -and $v2 -ge $AHK_MIN_VER) { $_ }
+                     } |
+                     Sort-Object { Get-AhkVersion $_.FullName } -Descending |
+                     Select-Object -First 1
+            if ($null -ne $found) { $exe = $found.FullName }
+        }
+    }
+
     if ($null -eq $exe) {
         Write-Progress -Activity 'AutoHotkey Setup' -Completed
         throw 'AutoHotkey install failed — exe not found. Install manually: https://www.autohotkey.com/download/'
