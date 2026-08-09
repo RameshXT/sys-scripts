@@ -43,6 +43,9 @@ jobs:
             | `hotkeys.sha256` | SHA-256 checksum for verification |
             | `xtkeys.ps1` | Installer & CLI |
             | `hotkeys.zip` | Full bundle (ahk + installer) |
+
+            ---
+            Built from commit `${{ github.sha }}` · run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           files: |
             dist/hotkeys.ahk
             dist/hotkeys.sha256
@@ -51,5 +54,19 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # When triggered via workflow_dispatch (not a tag push), the 'latest'
+      # git tag is not automatically moved to the new commit.
+      # Force-update it here so the GitHub UI shows the correct commit SHA.
+      - name: Update 'latest' git tag to current commit
+        if: github.ref_type != 'tag'
+        shell: bash
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f latest ${{ github.sha }}
+          git push origin latest --force
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
