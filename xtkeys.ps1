@@ -85,34 +85,54 @@ function Invoke-SecureDownload ([string]$Url, [string]$OutFile) {
     $wc.DownloadFile($Url, $OutFile)
 }
 
-# Download file with a live KB/% progress bar
+# Inline ASCII progress bar
+function Write-Bar {
+    param([double]$Percent, [int]$Width = 56)
+    $pct    = [math]::Min(100, [math]::Max(0, $Percent))
+    $pctStr = '{0:0.1}%' -f $pct
+    $fill   = [math]::Min($Width, [math]::Round($pct / 100 * $Width))
+    $bar    = ('=' * $fill) + (' ' * ($Width - $fill))
+    $mid    = [math]::Floor(($Width - $pctStr.Length) / 2)
+    $bar    = $bar.Substring(0, $mid) + $pctStr + $bar.Substring($mid + $pctStr.Length)
+    [Console]::Write("`r[$bar]")
+}
+
+# Download file with a live ASCII progress bar (file-size polling)
 function Invoke-SecureDownloadWithProgress ([string]$Url, [string]$OutFile, [string]$Label = 'Downloading') {
     if ($Url -notmatch '^https://') { throw "Security: refusing non-HTTPS URL: $Url" }
+
+    # HEAD request to get total size (best-effort)
+    $totalBytes = -1
+    try {
+        $head = [System.Net.HttpWebRequest]::CreateHttp($Url)
+        $head.Method    = 'HEAD'
+        $head.UserAgent = "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)"
+        $resp = $head.GetResponse()
+        $totalBytes = $resp.ContentLength
+        $resp.Close()
+    } catch { }
 
     $wc = [System.Net.WebClient]::new()
     $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
 
-    # Wire up DownloadProgressChanged to Write-Progress
-    $progressJob = Register-ObjectEvent -InputObject $wc -EventName DownloadProgressChanged -Action {
-        $pct = $event.SourceEventArgs.ProgressPercentage
-        $rcv = [math]::Round($event.SourceEventArgs.BytesReceived / 1KB, 1)
-        $tot = $event.SourceEventArgs.TotalBytesToReceive
-        $status = if ($tot -gt 0) {
-            "${rcv} KB / $([math]::Round($tot/1KB,1)) KB"
-        } else {
-            "${rcv} KB received"
-        }
-        Write-Progress -Activity $using:Label -Status $status -PercentComplete ([math]::Max(0, $pct))
-    }
-
     try {
         $task = $wc.DownloadFileTaskAsync($Url, $OutFile)
-        while (-not $task.IsCompleted) { Start-Sleep -Milliseconds 150 }
+        while (-not $task.IsCompleted) {
+            try   { $received = if (Test-Path $OutFile) { (Get-Item $OutFile).Length } else { 0 } }
+            catch { $received = 0 }
+            
+            if ($totalBytes -gt 0) {
+                $pct = [math]::Min(99.9, $received / $totalBytes * 100)
+            } else {
+                $pct = 50 # Indeterminate
+            }
+            Write-Bar -Percent $pct
+            Start-Sleep -Milliseconds 150
+        }
         if ($task.IsFaulted) { throw $task.Exception.InnerException }
-        Write-Progress -Activity $Label -Completed
+        Write-Bar -Percent 100
+        [Console]::WriteLine('')
     } finally {
-        Unregister-Event -SourceIdentifier $progressJob.Name -ErrorAction SilentlyContinue
-        Remove-Job    -Name           $progressJob.Name -ErrorAction SilentlyContinue
         $wc.Dispose()
     }
 }
@@ -277,7 +297,6 @@ function Test-AhkVersionOk ([string]$ExePath) {
 }
 
 function Install-AutoHotkey {
-    Write-Progress -Activity 'AutoHotkey Setup' -Status "Checking for AutoHotkey >= v$AHK_WINGET_VER..." -PercentComplete 5
     Write-Step "Checking for AutoHotkey >= v$AHK_WINGET_VER..."
 
     # Check any existing install first
@@ -286,7 +305,6 @@ function Install-AutoHotkey {
         if (Test-AhkVersionOk $existing) {
             $v = Get-AhkVersion $existing
             Write-OK "AutoHotkey v$v found (meets v$AHK_WINGET_VER requirement): $existing"
-            Write-Progress -Activity 'AutoHotkey Setup' -Completed
             return $existing
         } else {
             $v = Get-AhkVersion $existing
@@ -300,7 +318,6 @@ function Install-AutoHotkey {
         # 1. Try winget install --force
         #    --force bypasses the "already installed" guard that causes winget
         #    to silently skip the install when an older version is present.
-        Write-Progress -Activity 'AutoHotkey Setup' -Status 'Installing via winget (this may take ~30 s)...' -PercentComplete 25
         Write-Step "Trying winget install --force for AutoHotkey v$AHK_WINGET_VER..."
         try {
             winget install --id $AHK_WINGET_ID --version $AHK_WINGET_VER `
@@ -310,13 +327,11 @@ function Install-AutoHotkey {
             if ($null -ne $exe -and (Test-AhkVersionOk $exe)) {
                 $v = Get-AhkVersion $exe
                 Write-OK "AutoHotkey v$v installed via winget: $exe"
-                Write-Progress -Activity 'AutoHotkey Setup' -Completed
                 return $exe
             }
         } catch { Write-Warn "winget install failed: $($_.Exception.Message)" }
 
         # 2. Try winget upgrade --force (handles the "older version already present" case)
-        Write-Progress -Activity 'AutoHotkey Setup' -Status 'Trying winget upgrade...' -PercentComplete 40
         Write-Step 'Trying winget upgrade --force...'
         try {
             winget upgrade --id $AHK_WINGET_ID --version $AHK_WINGET_VER `
@@ -326,7 +341,6 @@ function Install-AutoHotkey {
             if ($null -ne $exe -and (Test-AhkVersionOk $exe)) {
                 $v = Get-AhkVersion $exe
                 Write-OK "AutoHotkey v$v upgraded via winget: $exe"
-                Write-Progress -Activity 'AutoHotkey Setup' -Completed
                 return $exe
             }
         } catch { Write-Warn "winget upgrade failed: $($_.Exception.Message)" }
@@ -341,11 +355,9 @@ function Install-AutoHotkey {
     # LocalAppData install directory - no UAC, no elevation, fully isolated.
     $tmpZip = Join-Path $env:TEMP "ahk-v${AHK_WINGET_VER}.zip"
 
-    Write-Progress -Activity 'AutoHotkey Setup' -Status "Downloading AutoHotkey v$AHK_WINGET_VER (portable)..." -PercentComplete 55
     Write-Step "Downloading AutoHotkey v$AHK_WINGET_VER portable ZIP from GitHub Releases..."
     Invoke-SecureDownloadWithProgress $AHK_PORTABLE_URL $tmpZip "Downloading AutoHotkey v$AHK_WINGET_VER"
 
-    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Extracting AutoHotkey...' -PercentComplete 82
     Write-Step 'Extracting AutoHotkey portable...'
     if (Test-Path $AHK_PORTABLE_DIR) {
         Remove-Item $AHK_PORTABLE_DIR -Recurse -Force -ErrorAction SilentlyContinue
@@ -354,25 +366,21 @@ function Install-AutoHotkey {
     Expand-Archive -Path $tmpZip -DestinationPath $AHK_PORTABLE_DIR -Force
     Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
 
-    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Verifying...' -PercentComplete 95
 
     # Get-AhkExe already checks $AHK_PORTABLE_DIR - it will find the freshly extracted exe
     $exe = Get-AhkExe
 
     if ($null -eq $exe) {
-        Write-Progress -Activity 'AutoHotkey Setup' -Completed
         throw 'AutoHotkey install failed - exe not found after extraction. Check https://www.autohotkey.com/download/'
     }
     if (-not (Test-AhkVersionOk $exe)) {
         $v = Get-AhkVersion $exe
-        Write-Progress -Activity 'AutoHotkey Setup' -Completed
         throw ("AutoHotkey v$v was found but does not meet the v$AHK_WINGET_VER requirement.`n" +
                "  Please install v$AHK_WINGET_VER manually: https://www.autohotkey.com/download/")
     }
 
     $v = Get-AhkVersion $exe
     Write-OK "AutoHotkey v$v ready: $exe"
-    Write-Progress -Activity 'AutoHotkey Setup' -Completed
     return $exe
 }
 
@@ -417,22 +425,16 @@ function Invoke-Install {
 
     # -- 1. Create install dir -------------------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Setting up install directory..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     Write-Step "Setting up install directory: $INSTALL_DIR"
     New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
     Write-OK 'Directory ready.'
 
     # -- 2. Install AutoHotkey v2 ----------------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Installing AutoHotkey..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     $ahkExe = Install-AutoHotkey
 
     # -- 3. Download + verify hotkeys.ahk -------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Downloading hotkeys.ahk..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     $tmp = Get-LatestHotkeys
     Copy-Item $tmp $AHK_FILE -Force
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
@@ -440,8 +442,6 @@ function Invoke-Install {
 
     # -- 4. Copy / download xtkeys.ps1 for the CLI ----------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Installing CLI..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     $self   = $MyInvocation.ScriptName
     $isSelf = $self -and
               (Resolve-Path $self -ErrorAction SilentlyContinue) -eq
@@ -456,38 +456,28 @@ function Invoke-Install {
 
     # -- 5. Write xtkeys.cmd wrapper -------------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Writing CLI wrapper..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     Write-CliWrapper
     Set-ScriptExecutionPolicy
     Write-OK 'xtkeys.cmd wrapper created.'
 
     # -- 6. Add install dir to User PATH --------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Updating User PATH..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     Write-Step 'Adding to User PATH...'
     Add-ToUserPath $INSTALL_DIR
     Write-OK "$INSTALL_DIR added to User PATH."
 
     # -- 7. Create Startup shortcut --------------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Creating Startup shortcut..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     Write-Step 'Creating Startup shortcut...'
     New-StartupShortcut $ahkExe
     Write-OK "Startup shortcut: $STARTUP_LNK"
 
     # -- 8. Launch immediately -------------------------------------------------
     $step++
-    Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Launching hotkeys..." `
-        -PercentComplete ([math]::Round($step / $totalSteps * 100))
     Write-Step 'Launching hotkeys now...'
     Stop-Hotkeys
     Start-Hotkeys $ahkExe
     Start-Sleep -Seconds 1
-
-    Write-Progress -Activity 'Installing xtkeys' -Completed
 
     Write-Host ''
     if (Test-HotkeysRunning) {
@@ -538,7 +528,6 @@ function Invoke-Update {
     if ($null -eq $ahkExe) { throw 'AutoHotkey not found. Reinstall xtkeys.' }
 
     # Update hotkeys.ahk
-    Write-Progress -Activity 'Updating xtkeys' -Status '[1/3] Downloading hotkeys.ahk...' -PercentComplete 15
     $tmp = Get-LatestHotkeys
     Stop-Hotkeys
     Copy-Item $tmp $AHK_FILE -Force
@@ -546,18 +535,15 @@ function Invoke-Update {
     Write-OK 'hotkeys.ahk updated.'
 
     # Update xtkeys.ps1 CLI itself
-    Write-Progress -Activity 'Updating xtkeys' -Status '[2/3] Updating xtkeys CLI...' -PercentComplete 55
     Write-Step 'Updating xtkeys CLI...'
     Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
     Write-CliWrapper
     Set-ScriptExecutionPolicy   # re-unblock and refresh execution policy after update
     Write-OK 'xtkeys CLI updated.'
 
-    Write-Progress -Activity 'Updating xtkeys' -Status '[3/3] Restarting hotkeys...' -PercentComplete 85
     Write-Step 'Restarting hotkeys...'
     Start-Hotkeys $ahkExe
     Start-Sleep -Seconds 1
-    Write-Progress -Activity 'Updating xtkeys' -Completed
 
     if (Test-HotkeysRunning) { Write-OK 'hotkeys.ahk running on latest version.' }
     else                     { Write-Warn 'hotkeys may not have started - run `xtkeys status`.' }
@@ -686,4 +672,3 @@ elseif ($cmd -eq 'help' -or $cmd -eq '-h' -or $cmd -eq '--help') { Invoke-Help }
 else {
     Invoke-Help
 }
-
