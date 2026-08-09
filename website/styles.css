@@ -187,6 +187,27 @@ header .subtitle {
 .cli-desc {
   color: var(--text-secondary);
   font-size: 1rem;
+  flex: 1;
+}
+
+.cli-copy {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.1s;
+}
+
+.cli-copy:hover {
+  color: var(--text-primary);
+}
+
+.cli-copy.copied {
+  color: #27c93f;
 }
 
 @media (max-width: 600px) {
