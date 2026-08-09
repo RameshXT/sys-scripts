@@ -47,8 +47,11 @@ $HASH_URL       = "$RELEASE_BASE/hotkeys.sha256"
 $AHK_WINGET_ID  = 'AutoHotkey.AutoHotkey'
 $AHK_WINGET_VER = '2.0.26'           # exact version required by hotkeys.ahk (#Requires AutoHotkey v2.0.26)
 $AHK_MIN_VER    = [Version]'2.0.26'  # minimum acceptable version
-# Pinned direct download for AHK v2.0.26 from the official GitHub releases
-$AHK_DIRECT_URL = 'https://github.com/AutoHotkey/AutoHotkey/releases/download/v2.0.26/AutoHotkey_2.0.26_setup.exe'
+# Pinned installer (used by winget; we do NOT run the exe directly — see portable below)
+$AHK_DIRECT_URL  = 'https://github.com/AutoHotkey/AutoHotkey/releases/download/v2.0.26/AutoHotkey_2.0.26_setup.exe'
+# Portable ZIP: no installer, no admin required, extracts into our own install dir
+$AHK_PORTABLE_URL = 'https://github.com/AutoHotkey/AutoHotkey/releases/download/v2.0.26/AutoHotkey_2.0.26.zip'
+$AHK_PORTABLE_DIR = Join-Path $INSTALL_DIR 'ahk'
 
 # ==============================================================================
 # HELPERS
@@ -127,6 +130,11 @@ function Confirm-FileHash ([string]$File, [string]$Expected) {
 # not just the first, so a freshly-installed v2.0.26 beats a stale v2.0.23.
 function Get-AhkExe {
     $candidates = @(
+        # Portable extract (inside our own install dir — checked first)
+        (Join-Path $AHK_PORTABLE_DIR 'AutoHotkey64.exe'),
+        (Join-Path $AHK_PORTABLE_DIR 'AutoHotkey32.exe'),
+        (Join-Path $AHK_PORTABLE_DIR 'AutoHotkey.exe'),
+        # System install paths
         'C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe',
         'C:\Program Files\AutoHotkey\v2\AutoHotkey32.exe',
         'C:\Program Files\AutoHotkey\v2\AutoHotkey.exe',
@@ -296,44 +304,34 @@ function Install-AutoHotkey {
         Write-Warn 'winget could not install v2.0.26+. Falling back to direct download...'
     }
 
-    # ── Direct download fallback ───────────────────────────────────────────────
-    # AHK v2 uses a custom installer. The correct silent flag is /silent.
-    $setup = Join-Path $env:TEMP "ahk-v${AHK_WINGET_VER}-setup.exe"
+    # ── Portable ZIP fallback (no admin, no installer) ───────────────────────────
+    # We skip the setup.exe entirely. The AHK installer silently refuses to
+    # upgrade an existing version when run without elevation (writes to
+    # Program Files). Instead we extract the portable ZIP into our own
+    # LocalAppData install directory — no UAC, no elevation, fully isolated.
+    $tmpZip = Join-Path $env:TEMP "ahk-v${AHK_WINGET_VER}.zip"
 
-    Write-Progress -Activity 'AutoHotkey Setup' -Status "Downloading AutoHotkey v$AHK_WINGET_VER..." -PercentComplete 55
-    Write-Step "Downloading AutoHotkey v$AHK_WINGET_VER from GitHub Releases (HTTPS, pinned)..."
-    Invoke-SecureDownloadWithProgress $AHK_DIRECT_URL $setup "Downloading AutoHotkey v$AHK_WINGET_VER"
+    Write-Progress -Activity 'AutoHotkey Setup' -Status "Downloading AutoHotkey v$AHK_WINGET_VER (portable)..." -PercentComplete 55
+    Write-Step "Downloading AutoHotkey v$AHK_WINGET_VER portable ZIP from GitHub Releases..."
+    Invoke-SecureDownloadWithProgress $AHK_PORTABLE_URL $tmpZip "Downloading AutoHotkey v$AHK_WINGET_VER"
 
-    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Running installer silently...' -PercentComplete 80
-    Write-Step 'Running AutoHotkey installer silently...'
-    Start-Process -FilePath $setup -ArgumentList '/silent' -Wait -NoNewWindow
-    Start-Sleep -Seconds 3   # give the installer time to finalize file writes
-    Remove-Item $setup -Force -ErrorAction SilentlyContinue
-
-    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Verifying installation...' -PercentComplete 95
-
-    # Primary scan (candidates + PATH)
-    $exe = Get-AhkExe
-
-    # Broad fallback: walk the AHK install tree to find any exe we might have missed
-    if ($null -eq $exe -or -not (Test-AhkVersionOk $exe)) {
-        $ahkRoot = 'C:\Program Files\AutoHotkey'
-        if (Test-Path $ahkRoot) {
-            $found = Get-ChildItem -Path $ahkRoot -Recurse -Filter 'AutoHotkey*.exe' -ErrorAction SilentlyContinue |
-                     Where-Object { $_.Name -notmatch 'UX|Compiler|installer' } |
-                     ForEach-Object {
-                         $v2 = Get-AhkVersion $_.FullName
-                         if ($null -ne $v2 -and $v2 -ge $AHK_MIN_VER) { $_ }
-                     } |
-                     Sort-Object { Get-AhkVersion $_.FullName } -Descending |
-                     Select-Object -First 1
-            if ($null -ne $found) { $exe = $found.FullName }
-        }
+    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Extracting AutoHotkey...' -PercentComplete 82
+    Write-Step 'Extracting AutoHotkey portable...'
+    if (Test-Path $AHK_PORTABLE_DIR) {
+        Remove-Item $AHK_PORTABLE_DIR -Recurse -Force -ErrorAction SilentlyContinue
     }
+    New-Item -ItemType Directory -Path $AHK_PORTABLE_DIR -Force | Out-Null
+    Expand-Archive -Path $tmpZip -DestinationPath $AHK_PORTABLE_DIR -Force
+    Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+
+    Write-Progress -Activity 'AutoHotkey Setup' -Status 'Verifying...' -PercentComplete 95
+
+    # Get-AhkExe already checks $AHK_PORTABLE_DIR — it will find the freshly extracted exe
+    $exe = Get-AhkExe
 
     if ($null -eq $exe) {
         Write-Progress -Activity 'AutoHotkey Setup' -Completed
-        throw 'AutoHotkey install failed — exe not found. Install manually: https://www.autohotkey.com/download/'
+        throw 'AutoHotkey install failed — exe not found after extraction. Check https://www.autohotkey.com/download/'
     }
     if (-not (Test-AhkVersionOk $exe)) {
         $v = Get-AhkVersion $exe
@@ -343,7 +341,7 @@ function Install-AutoHotkey {
     }
 
     $v = Get-AhkVersion $exe
-    Write-OK "AutoHotkey v$v installed: $exe"
+    Write-OK "AutoHotkey v$v ready: $exe"
     Write-Progress -Activity 'AutoHotkey Setup' -Completed
     return $exe
 }
