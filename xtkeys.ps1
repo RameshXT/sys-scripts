@@ -550,6 +550,7 @@ function Invoke-Update {
     Write-Step 'Updating xtkeys CLI...'
     Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
     Write-CliWrapper
+    Set-ScriptExecutionPolicy   # re-unblock and refresh execution policy after update
     Write-OK 'xtkeys CLI updated.'
 
     Write-Progress -Activity 'Updating xtkeys' -Status '[3/3] Restarting hotkeys...' -PercentComplete 85
