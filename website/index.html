@@ -3,116 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>xtkeys | Ultimate Hotkeys</title>
-  <meta name="description" content="A premium, portable hotkeys installer and CLI for Windows. Zero configuration required.">
+  <title>XTKEYS</title>
+  <meta name="description" content="A portable hotkeys installer and CLI for Windows.">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Animated Aurora Mesh -->
-  <div class="aurora-container">
-    <div class="aurora-blob blob-1"></div>
-    <div class="aurora-blob blob-2"></div>
-    <div class="aurora-blob blob-3"></div>
-  </div>
-
   <main>
-    <div class="bento-grid">
-      
-      <!-- HERO (Spans 2 columns) -->
-      <div class="bento-card bento-hero bento-span-2 tilt-card">
-        <div class="card-inner">
-          <div class="glow-border"></div>
-          <h1>XTKEYS<br><span>AUTOMATION</span></h1>
-          <p>The ultimate zero-configuration portable hotkeys installer and CLI manager for Windows.</p>
+    <header class="section border-bottom">
+      <h1>XTKEYS</h1>
+      <p class="subtitle">PORTABLE HOTKEYS INSTALLER & CLI FOR WINDOWS</p>
+    </header>
+
+    <section class="section border-bottom flex-row">
+      <div class="terminal-box">
+        <span class="prompt">PS&gt;</span>
+        <span class="command" id="install-cmd">irm https://github.com/RameshXT/hotkeys/releases/latest/download/xtkeys.ps1 | iex</span>
+      </div>
+      <button class="copy-btn" id="copy-btn">COPY</button>
+    </section>
+
+    <section class="section border-bottom grid-3">
+      <div class="card border-right">
+        <h3>01 / ZERO CONFIG</h3>
+        <p>One command installs AHK v2, downloads scripts, and wires it up automatically.</p>
+      </div>
+      <div class="card border-right">
+        <h3>02 / PORTABLE</h3>
+        <p>100% isolated inside LocalAppData. Zero administrator rights required.</p>
+      </div>
+      <div class="card">
+        <h3>03 / BUILT-IN CLI</h3>
+        <p>Manage, restart, and update natively from any PowerShell window.</p>
+      </div>
+    </section>
+
+    <section class="section border-bottom">
+      <div class="cli-header">
+        <h2>CLI COMMANDS</h2>
+      </div>
+      <div class="cli-table">
+        <div class="cli-row border-bottom">
+          <div class="cli-cmd">xtkeys status</div>
+          <div class="cli-desc">Check if the process is running</div>
+        </div>
+        <div class="cli-row border-bottom">
+          <div class="cli-cmd">xtkeys update</div>
+          <div class="cli-desc">Pull latest scripts & restart</div>
+        </div>
+        <div class="cli-row border-bottom">
+          <div class="cli-cmd">xtkeys restart</div>
+          <div class="cli-desc">Force kill and cleanly re-launch</div>
+        </div>
+        <div class="cli-row">
+          <div class="cli-cmd">xtkeys uninstall</div>
+          <div class="cli-desc">Safely remove everything</div>
         </div>
       </div>
-
-      <!-- INSTALL COMMAND -->
-      <div class="bento-card bento-install bento-span-2 tilt-card">
-        <div class="card-inner">
-          <div class="glow-border"></div>
-          <div class="terminal">
-            <div class="terminal-header">
-              <span class="dot red"></span>
-              <span class="dot yellow"></span>
-              <span class="dot green"></span>
-            </div>
-            <div class="terminal-body">
-              <span class="prompt">~</span>
-              <span class="command" id="install-cmd"></span>
-              <span class="cursor"></span>
-            </div>
-            <button class="copy-btn" id="copy-btn">COPY</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- FEATURE: Zero Config -->
-      <div class="bento-card feature tilt-card">
-        <div class="card-inner">
-          <div class="glow-border"></div>
-          <div class="icon">✨</div>
-          <h3>Zero Config</h3>
-          <p>One command installs AHK v2, downloads scripts, and wires it up.</p>
-        </div>
-      </div>
-
-      <!-- FEATURE: Portable -->
-      <div class="bento-card feature tilt-card">
-        <div class="card-inner">
-          <div class="glow-border"></div>
-          <div class="icon">🚀</div>
-          <h3>Portable</h3>
-          <p>100% isolated inside LocalAppData. Zero admin rights needed.</p>
-        </div>
-      </div>
-
-      <!-- FEATURE: CLI -->
-      <div class="bento-card feature tilt-card">
-        <div class="card-inner">
-          <div class="glow-border"></div>
-          <div class="icon">⚡</div>
-          <h3>Built-in CLI</h3>
-          <p>Manage, restart, and update natively from any PowerShell window.</p>
-        </div>
-      </div>
-
-      <!-- COMMANDS TABLE (Spans 3 columns) -->
-      <div class="bento-card bento-cli bento-span-3 tilt-card">
-        <div class="card-inner">
-          <div class="glow-border"></div>
-          <h2>CLI Commands</h2>
-          <div class="cli-list">
-            <div class="cli-item">
-              <code>xtkeys status</code>
-              <span>Check if the process is running</span>
-            </div>
-            <div class="cli-item">
-              <code>xtkeys update</code>
-              <span>Pull latest scripts & restart</span>
-            </div>
-            <div class="cli-item">
-              <code>xtkeys restart</code>
-              <span>Force kill and cleanly re-launch</span>
-            </div>
-            <div class="cli-item">
-              <code>xtkeys uninstall</code>
-              <span>Safely remove everything</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
+    </section>
   </main>
 
-  <footer>
-    <p>Open Source &middot; <a href="https://github.com/RameshXT/hotkeys" target="_blank">View on GitHub</a></p>
+  <footer class="section">
+    <a href="https://github.com/RameshXT/hotkeys" target="_blank">GITHUB REPOSITORY</a>
   </footer>
 
   <script src="script.js"></script>
