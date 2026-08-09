@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     xt - Hotkeys Installer & CLI
     One command to install, manage, and update your AutoHotkey hotkeys on any Windows machine.
