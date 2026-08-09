@@ -3,8 +3,8 @@ name: Build & Release xtkeys
 on:
   push:
     tags:
-      - 'v*'          # triggers on any version tag e.g. v1.0.0, v1.2.3
-  workflow_dispatch:  # allows manual trigger from GitHub Actions UI
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -56,10 +56,6 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # When triggered via workflow_dispatch (not a tag push), the 'latest'
-      # git tag is not automatically moved to the new commit.
-      # Force-update it here so the GitHub UI shows the correct commit SHA.
       - name: Update 'latest' git tag to current commit
         if: github.ref_type != 'tag'
         shell: bash
