@@ -221,9 +221,39 @@ function New-StartupShortcut ([string]$AhkExe) {
 }
 
 # Write the xtkeys.cmd wrapper so `xtkeys` works from any terminal
+# The wrapper explicitly passes -ExecutionPolicy Bypass so the system
+# execution policy does not block xtkeys.ps1 when invoked via cmd.
 function Write-CliWrapper {
     $bat = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0xtkeys.ps1`" %*`r`n"
     [System.IO.File]::WriteAllText($CLI_BAT, $bat, [System.Text.Encoding]::ASCII)
+}
+
+# Unblock downloaded files and ensure the CurrentUser execution policy
+# allows local scripts to run. Without this, PowerShell resolves `xtkeys`
+# to xtkeys.ps1 on the PATH and blocks it under a Restricted policy.
+function Set-ScriptExecutionPolicy {
+    # Unblock both files to remove the Zone.Identifier ("downloaded from internet") mark
+    foreach ($f in @($CLI_FILE, $CLI_BAT)) {
+        if (Test-Path $f) {
+            try   { Unblock-File $f -ErrorAction Stop }
+            catch { }  # Non-fatal if already unblocked or filesystem doesn't support streams
+        }
+    }
+
+    # Set CurrentUser policy to RemoteSigned if currently more restrictive
+    $cur = Get-ExecutionPolicy -Scope CurrentUser
+    if ($cur -eq 'Undefined' -or $cur -eq 'Restricted' -or $cur -eq 'AllSigned') {
+        try {
+            Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+            Write-OK 'Execution policy set to RemoteSigned (CurrentUser).'
+        } catch {
+            Write-Warn 'Could not set execution policy automatically.'
+            Write-Warn 'If `xtkeys` fails, run this once in PowerShell:'
+            Write-Warn '  Set-ExecutionPolicy RemoteSigned -Scope CurrentUser'
+        }
+    } else {
+        Write-OK "Execution policy OK ($cur — CurrentUser)."
+    }
 }
 
 # ==============================================================================
@@ -429,6 +459,7 @@ function Invoke-Install {
     Write-Progress -Activity 'Installing xtkeys' -Status "[$step/$totalSteps] Writing CLI wrapper..." `
         -PercentComplete ([math]::Round($step / $totalSteps * 100))
     Write-CliWrapper
+    Set-ScriptExecutionPolicy
     Write-OK 'xtkeys.cmd wrapper created.'
 
     # ── 6. Add install dir to User PATH ──────────────────────────────────────
