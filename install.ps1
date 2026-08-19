@@ -84,7 +84,7 @@ function Write-Bar {
     $bar    = ('=' * $fill) + (' ' * ($Width - $fill))
     $mid    = [math]::Floor(($Width - $pctStr.Length) / 2)
     $bar    = $bar.Substring(0, $mid) + $pctStr + $bar.Substring($mid + $pctStr.Length)
-    [Console]::Write("`r[$bar]")
+    Write-Host ("`r[$bar]") -NoNewline -ForegroundColor Cyan
 }
 function Invoke-SecureDownloadWithProgress ([string]$Url, [string]$OutFile, [string]$Label = 'Downloading') {
     if ($Url -notmatch '^https://') { throw "Security: refusing non-HTTPS URL: $Url" }
