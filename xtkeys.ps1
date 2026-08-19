@@ -57,8 +57,8 @@ if ($host.PrivateData) {
     try {
         $originalVerboseColor = $host.PrivateData.VerboseForegroundColor
         $originalWarningColor = $host.PrivateData.WarningForegroundColor
-        $host.PrivateData.VerboseForegroundColor = 'Gray'
-        $host.PrivateData.WarningForegroundColor = 'White'
+        $host.PrivateData.VerboseForegroundColor = 'Cyan'
+        $host.PrivateData.WarningForegroundColor = 'Cyan'
     } catch {}
 }
 
@@ -428,14 +428,14 @@ function Invoke-Help {
     Write-Host '  xtkeys - Hotkeys Installer & CLI' -ForegroundColor White
     Write-Host ''
     Write-Host '  Commands:' -ForegroundColor White
-    Write-Host '    xtkeys status      Check if hotkeys are running'     -ForegroundColor White
-    Write-Host '    xtkeys update      Download latest and restart'      -ForegroundColor White
-    Write-Host '    xtkeys restart     Kill and re-launch hotkeys'       -ForegroundColor White
-    Write-Host '    xtkeys uninstall   Remove everything cleanly'        -ForegroundColor White
-    Write-Host '    xtkeys help        Show this help message'           -ForegroundColor White
+    Write-Host '    xtkeys status      Check if hotkeys are running'     -ForegroundColor Cyan
+    Write-Host '    xtkeys update      Download latest and restart'      -ForegroundColor Cyan
+    Write-Host '    xtkeys restart     Kill and re-launch hotkeys'       -ForegroundColor Cyan
+    Write-Host '    xtkeys uninstall   Remove everything cleanly'        -ForegroundColor Cyan
+    Write-Host '    xtkeys help        Show this help message'           -ForegroundColor Cyan
     Write-Host ''
     Write-Host '  Web install (any Windows machine):' -ForegroundColor White
-    Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex" -ForegroundColor White
+    Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex" -ForegroundColor DarkCyan
     Write-Host ''
 }
 

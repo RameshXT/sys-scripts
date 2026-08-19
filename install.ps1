@@ -28,8 +28,8 @@ if ($host.PrivateData) {
     try {
         $originalVerboseColor = $host.PrivateData.VerboseForegroundColor
         $originalWarningColor = $host.PrivateData.WarningForegroundColor
-        $host.PrivateData.VerboseForegroundColor = 'Gray'
-        $host.PrivateData.WarningForegroundColor = 'White'
+        $host.PrivateData.VerboseForegroundColor = 'Cyan'
+        $host.PrivateData.WarningForegroundColor = 'Cyan'
     } catch {}
 }
 
@@ -400,14 +400,14 @@ function Invoke-Install {
         Write-Warning 'hotkeys.ahk may not have started yet - run `xtkeys status` to check.'
     }
     Write-Host ''
-    Write-Host '  ========================================' -ForegroundColor White
-    Write-Host '  Installation complete!' -ForegroundColor White
+    Write-Host '  ========================================' -ForegroundColor Cyan
+    Write-Host '  Installation complete!' -ForegroundColor Cyan
     Write-Host '  Restart your terminal, then use:' -ForegroundColor White
-    Write-Host '    xtkeys status    - check if running'    -ForegroundColor White
-    Write-Host '    xtkeys update    - pull latest version' -ForegroundColor White
-    Write-Host '    xtkeys uninstall - remove everything'   -ForegroundColor White
-    Write-Host '    xtkeys help      - show this help message' -ForegroundColor White
-    Write-Host '  ========================================' -ForegroundColor White
+    Write-Host '    xtkeys status    - check if running'    -ForegroundColor Cyan
+    Write-Host '    xtkeys update    - pull latest version' -ForegroundColor Cyan
+    Write-Host '    xtkeys uninstall - remove everything'   -ForegroundColor Cyan
+    Write-Host '    xtkeys help      - show this help message' -ForegroundColor Cyan
+    Write-Host '  ========================================' -ForegroundColor Cyan
     Write-Host ''
 }
 
