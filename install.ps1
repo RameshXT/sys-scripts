@@ -65,9 +65,16 @@ function Set-SecureTls {
 }
 function Invoke-SecureDownload ([string]$Url, [string]$OutFile) {
     if ($Url -notmatch '^https://') { throw "Security: refusing non-HTTPS URL: $Url" }
-    $wc = [System.Net.WebClient]::new()
-    $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
-    $wc.DownloadFile($Url, $OutFile)
+    $wc = $null
+    try {
+        $wc = [System.Net.WebClient]::new()
+        $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
+        $wc.DownloadFile($Url, $OutFile)
+    } catch {
+        throw "Failed to download from '$Url' to '$OutFile'. Details: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $wc) { $wc.Dispose() }
+    }
 }
 function Write-Bar {
     param([double]$Percent, [int]$Width = 56)
@@ -90,9 +97,11 @@ function Invoke-SecureDownloadWithProgress ([string]$Url, [string]$OutFile, [str
         $totalBytes = $resp.ContentLength
         $resp.Close()
     } catch { }
-    $wc = [System.Net.WebClient]::new()
-    $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
+    
+    $wc = $null
     try {
+        $wc = [System.Net.WebClient]::new()
+        $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
         $task = $wc.DownloadFileTaskAsync($Url, $OutFile)
         while (-not $task.IsCompleted) {
             try   { $received = if (Test-Path $OutFile) { (Get-Item $OutFile).Length } else { 0 } }
@@ -108,15 +117,21 @@ function Invoke-SecureDownloadWithProgress ([string]$Url, [string]$OutFile, [str
         if ($task.IsFaulted) { throw $task.Exception.InnerException }
         Write-Bar -Percent 100
         [Console]::WriteLine('')
+    } catch {
+        throw "Failed to download with progress from '$Url' to '$OutFile'. Details: $($_.Exception.Message)"
     } finally {
-        $wc.Dispose()
+        if ($null -ne $wc) { $wc.Dispose() }
     }
 }
 function Confirm-FileHash ([string]$File, [string]$Expected) {
-    $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToUpper()
-    $expect = ($Expected.Trim().ToUpper() -replace '\s.*$', '')
-    if ($actual -ne $expect) {
-        throw "SHA-256 MISMATCH - aborting for security.`n  Expected: $expect`n  Got     : $actual"
+    try {
+        $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToUpper()
+        $expect = ($Expected.Trim().ToUpper() -replace '\s.*$', '')
+        if ($actual -ne $expect) {
+            throw "SHA-256 MISMATCH - aborting for security.`n  Expected: $expect`n  Got     : $actual"
+        }
+    } catch {
+        throw "Hash confirmation failed for file '$File'. Details: $($_.Exception.Message)"
     }
 }
 function Get-AhkExe {
@@ -168,27 +183,39 @@ function Start-Hotkeys ([string]$AhkExe) {
     Start-Process -FilePath $AhkExe -ArgumentList "`"$AHK_FILE`"" -WindowStyle Hidden
 }
 function Add-ToUserPath ([string]$Dir) {
-    $cur   = [Environment]::GetEnvironmentVariable('PATH', 'User')
-    if ($null -eq $cur) { $cur = '' }
-    $parts = $cur -split ';' | Where-Object { $_ -ne '' }
-    if ($parts -notcontains $Dir) {
-        [Environment]::SetEnvironmentVariable('PATH', (($parts + $Dir) -join ';'), 'User')
-        $env:PATH = $env:PATH + ';' + $Dir
+    try {
+        $cur   = [Environment]::GetEnvironmentVariable('PATH', 'User')
+        if ($null -eq $cur) { $cur = '' }
+        $parts = $cur -split ';' | Where-Object { $_ -ne '' }
+        if ($parts -notcontains $Dir) {
+            [Environment]::SetEnvironmentVariable('PATH', (($parts + $Dir) -join ';'), 'User')
+            $env:PATH = $env:PATH + ';' + $Dir
+        }
+    } catch {
+        throw "Failed to add '$Dir' to User PATH. Details: $($_.Exception.Message)"
     }
 }
 function New-StartupShortcut ([string]$AhkExe) {
-    $wsh      = New-Object -ComObject WScript.Shell
-    $lnk      = $wsh.CreateShortcut($STARTUP_LNK)
-    $lnk.TargetPath       = $AhkExe
-    $lnk.Arguments        = "`"$AHK_FILE`""
-    $lnk.WorkingDirectory = $INSTALL_DIR
-    $lnk.Description      = 'xt Hotkeys - AutoHotkey'
-    $lnk.IconLocation     = "$AhkExe,0"
-    $lnk.Save()
+    try {
+        $wsh      = New-Object -ComObject WScript.Shell
+        $lnk      = $wsh.CreateShortcut($STARTUP_LNK)
+        $lnk.TargetPath       = $AhkExe
+        $lnk.Arguments        = "`"$AHK_FILE`""
+        $lnk.WorkingDirectory = $INSTALL_DIR
+        $lnk.Description      = 'xt Hotkeys - AutoHotkey'
+        $lnk.IconLocation     = "$AhkExe,0"
+        $lnk.Save()
+    } catch {
+        throw "Failed to create Startup shortcut at '$STARTUP_LNK'. Details: $($_.Exception.Message)"
+    }
 }
 function Write-CliWrapper {
-    $bat = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0xtkeys.ps1`" %*`r`n"
-    [System.IO.File]::WriteAllText($CLI_BAT, $bat, [System.Text.Encoding]::ASCII)
+    try {
+        $bat = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0xtkeys.ps1`" %*`r`n"
+        [System.IO.File]::WriteAllText($CLI_BAT, $bat, [System.Text.Encoding]::ASCII)
+    } catch {
+        throw "Failed to write CLI wrapper to '$CLI_BAT'. Details: $($_.Exception.Message)"
+    }
 }
 function Set-ScriptExecutionPolicy {
     foreach ($f in @($CLI_FILE, $CLI_BAT)) {
@@ -266,12 +293,19 @@ function Install-AutoHotkey {
     Write-Verbose "Downloading AutoHotkey v$AHK_WINGET_VER portable ZIP from GitHub Releases..."
     Invoke-SecureDownloadWithProgress $AHK_PORTABLE_URL $tmpZip "Downloading AutoHotkey v$AHK_WINGET_VER"
     Write-Verbose 'Extracting AutoHotkey portable...'
-    if (Test-Path $AHK_PORTABLE_DIR) {
-        Remove-Item $AHK_PORTABLE_DIR -Recurse -Force -ErrorAction SilentlyContinue
+    try {
+        if (Test-Path $AHK_PORTABLE_DIR) {
+            Remove-Item $AHK_PORTABLE_DIR -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        New-Item -ItemType Directory -Path $AHK_PORTABLE_DIR -Force | Out-Null
+        Expand-Archive -Path $tmpZip -DestinationPath $AHK_PORTABLE_DIR -Force
+    } catch {
+        throw "Failed to extract AutoHotkey portable ZIP. Details: $($_.Exception.Message)"
+    } finally {
+        if (Test-Path $tmpZip) {
+            Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+        }
     }
-    New-Item -ItemType Directory -Path $AHK_PORTABLE_DIR -Force | Out-Null
-    Expand-Archive -Path $tmpZip -DestinationPath $AHK_PORTABLE_DIR -Force
-    Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
     $exe = Get-AhkExe
     if ($null -eq $exe) {
         throw 'AutoHotkey install failed - exe not found after extraction. Check https://www.autohotkey.com/download/'
@@ -309,26 +343,41 @@ function Invoke-Install {
     Write-Host ''
     Set-SecureTls
     Write-Verbose "Setting up install directory: $INSTALL_DIR"
-    New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
+    try {
+        New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
+    } catch {
+        throw "Failed to create install directory '$INSTALL_DIR'. Details: $($_.Exception.Message)"
+    }
     Write-Verbose 'Directory ready.'
     $ahkExe = Install-AutoHotkey
     $tmp = Get-LatestHotkeys
-    Copy-Item $tmp $AHK_FILE -Force
-    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    try {
+        Copy-Item $tmp $AHK_FILE -Force
+    } catch {
+        throw "Failed to copy hotkeys.ahk to '$AHK_FILE'. Details: $($_.Exception.Message)"
+    } finally {
+        if (Test-Path $tmp) {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        }
+    }
     Write-Verbose "hotkeys.ahk -> $AHK_FILE"
     
     $self = $MyInvocation.ScriptName
     $scriptDir = if ($self) { Split-Path $self -Parent } else { $null }
     $localCli = if ($scriptDir) { Join-Path $scriptDir 'xtkeys.ps1' } else { $null }
     
-    if ($self -and (Test-Path $self) -and $localCli -and (Test-Path $localCli)) {
-        Copy-Item $localCli $CLI_FILE -Force
-        Copy-Item $self (Join-Path $INSTALL_DIR 'install.ps1') -Force
-    } else {
-        Write-Verbose 'Downloading xtkeys.ps1 for CLI...'
-        Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
-        Write-Verbose 'Downloading install.ps1...'
-        Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+    try {
+        if ($self -and (Test-Path $self) -and $localCli -and (Test-Path $localCli)) {
+            Copy-Item $localCli $CLI_FILE -Force
+            Copy-Item $self (Join-Path $INSTALL_DIR 'install.ps1') -Force
+        } else {
+            Write-Verbose 'Downloading xtkeys.ps1 for CLI...'
+            Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
+            Write-Verbose 'Downloading install.ps1...'
+            Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+        }
+    } catch {
+        throw "Failed to copy installer files. Details: $($_.Exception.Message)"
     }
     Write-Verbose "xtkeys CLI -> $CLI_FILE"
     Write-CliWrapper

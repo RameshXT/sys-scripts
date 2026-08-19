@@ -94,9 +94,16 @@ function Set-SecureTls {
 }
 function Invoke-SecureDownload ([string]$Url, [string]$OutFile) {
     if ($Url -notmatch '^https://') { throw "Security: refusing non-HTTPS URL: $Url" }
-    $wc = [System.Net.WebClient]::new()
-    $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
-    $wc.DownloadFile($Url, $OutFile)
+    $wc = $null
+    try {
+        $wc = [System.Net.WebClient]::new()
+        $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
+        $wc.DownloadFile($Url, $OutFile)
+    } catch {
+        throw "Failed to download from '$Url' to '$OutFile'. Details: $($_.Exception.Message)"
+    } finally {
+        if ($null -ne $wc) { $wc.Dispose() }
+    }
 }
 function Write-Bar {
     param([double]$Percent, [int]$Width = 56)
@@ -119,9 +126,11 @@ function Invoke-SecureDownloadWithProgress ([string]$Url, [string]$OutFile, [str
         $totalBytes = $resp.ContentLength
         $resp.Close()
     } catch { }
-    $wc = [System.Net.WebClient]::new()
-    $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
+    
+    $wc = $null
     try {
+        $wc = [System.Net.WebClient]::new()
+        $wc.Headers.Add('User-Agent', "xt-installer/1.0 (github.com/$REPO_OWNER/$REPO_NAME)")
         $task = $wc.DownloadFileTaskAsync($Url, $OutFile)
         while (-not $task.IsCompleted) {
             try   { $received = if (Test-Path $OutFile) { (Get-Item $OutFile).Length } else { 0 } }
@@ -137,15 +146,21 @@ function Invoke-SecureDownloadWithProgress ([string]$Url, [string]$OutFile, [str
         if ($task.IsFaulted) { throw $task.Exception.InnerException }
         Write-Bar -Percent 100
         [Console]::WriteLine('')
+    } catch {
+        throw "Failed to download with progress from '$Url' to '$OutFile'. Details: $($_.Exception.Message)"
     } finally {
-        $wc.Dispose()
+        if ($null -ne $wc) { $wc.Dispose() }
     }
 }
 function Confirm-FileHash ([string]$File, [string]$Expected) {
-    $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToUpper()
-    $expect = ($Expected.Trim().ToUpper() -replace '\s.*$', '')
-    if ($actual -ne $expect) {
-        throw "SHA-256 MISMATCH - aborting for security.`n  Expected: $expect`n  Got     : $actual"
+    try {
+        $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToUpper()
+        $expect = ($Expected.Trim().ToUpper() -replace '\s.*$', '')
+        if ($actual -ne $expect) {
+            throw "SHA-256 MISMATCH - aborting for security.`n  Expected: $expect`n  Got     : $actual"
+        }
+    } catch {
+        throw "Hash confirmation failed for file '$File'. Details: $($_.Exception.Message)"
     }
 }
 function Get-AhkExe {
@@ -197,14 +212,22 @@ function Start-Hotkeys ([string]$AhkExe) {
     Start-Process -FilePath $AhkExe -ArgumentList "`"$AHK_FILE`"" -WindowStyle Hidden
 }
 function Remove-FromUserPath ([string]$Dir) {
-    $cur   = [Environment]::GetEnvironmentVariable('PATH', 'User')
-    if ($null -eq $cur) { return }
-    $parts = $cur -split ';' | Where-Object { $_ -ne '' -and $_ -ne $Dir }
-    [Environment]::SetEnvironmentVariable('PATH', ($parts -join ';'), 'User')
+    try {
+        $cur   = [Environment]::GetEnvironmentVariable('PATH', 'User')
+        if ($null -eq $cur) { return }
+        $parts = $cur -split ';' | Where-Object { $_ -ne '' -and $_ -ne $Dir }
+        [Environment]::SetEnvironmentVariable('PATH', ($parts -join ';'), 'User')
+    } catch {
+        throw "Failed to remove '$Dir' from User PATH. Details: $($_.Exception.Message)"
+    }
 }
 function Write-CliWrapper {
-    $bat = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0xtkeys.ps1`" %*`r`n"
-    [System.IO.File]::WriteAllText($CLI_BAT, $bat, [System.Text.Encoding]::ASCII)
+    try {
+        $bat = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0xtkeys.ps1`" %*`r`n"
+        [System.IO.File]::WriteAllText($CLI_BAT, $bat, [System.Text.Encoding]::ASCII)
+    } catch {
+        throw "Failed to write CLI wrapper to '$CLI_BAT'. Details: $($_.Exception.Message)"
+    }
 }
 function Set-ScriptExecutionPolicy {
     foreach ($f in @($CLI_FILE, $CLI_BAT)) {
@@ -263,7 +286,7 @@ function Invoke-Status {
         Write-Host "  OK  hotkeys.ahk is RUNNING  (PID: $hpid)" -ForegroundColor Green
     } else {
         Write-Host '  XX  hotkeys.ahk is NOT running.' -ForegroundColor Red
-        Write-Host '      Run `xtkeys restart` to start it.' -ForegroundColor Cyan
+        Write-Host '      Run `xtkeys restart` to start it.' -ForegroundColor Yellow
     }
     Write-Host "  Dir    : $INSTALL_DIR" -ForegroundColor DarkGray
     Write-Host "  Script : $AHK_FILE"   -ForegroundColor DarkGray
@@ -275,20 +298,29 @@ function Invoke-Update {
     Write-Host ''
     Set-SecureTls
     if (-not (Test-Path $INSTALL_DIR)) {
-        Write-Error 'xtkeys is not installed. Run the web installer first:'
-        Write-Host "  irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex"
-        exit 1
+        throw "xtkeys is not installed. Run the web installer first:`n  irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex"
     }
     $ahkExe = Get-AhkExe
     if ($null -eq $ahkExe) { throw 'AutoHotkey not found. Reinstall xtkeys.' }
     $tmp = Get-LatestHotkeys
     Stop-Hotkeys
-    Copy-Item $tmp $AHK_FILE -Force
-    Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    try {
+        Copy-Item $tmp $AHK_FILE -Force
+    } catch {
+        throw "Failed to update hotkeys.ahk at '$AHK_FILE'. Details: $($_.Exception.Message)"
+    } finally {
+        if (Test-Path $tmp) {
+            Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+        }
+    }
     Write-Verbose 'hotkeys.ahk updated.'
     Write-Verbose 'Updating xtkeys CLI...'
-    Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
-    Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+    try {
+        Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
+        Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+    } catch {
+        throw "Failed to download update scripts. Details: $($_.Exception.Message)"
+    }
     Write-CliWrapper
     Set-ScriptExecutionPolicy   
     Write-Verbose 'xtkeys CLI updated.'
@@ -305,8 +337,7 @@ function Invoke-Update {
 function Invoke-Restart {
     $ahkExe = Get-AhkExe
     if ($null -eq $ahkExe) {
-        Write-Error 'AutoHotkey not found.'
-        exit 1
+        throw 'AutoHotkey not found. Please reinstall xtkeys.'
     }
     Write-Verbose 'Stopping hotkeys...'
     Stop-Hotkeys
@@ -333,16 +364,20 @@ function Invoke-Uninstall {
     Write-Verbose 'Stopping hotkeys process...'
     Stop-Hotkeys
     Write-Verbose 'Process stopped.'
-    if (Test-Path $STARTUP_LNK) {
-        Remove-Item $STARTUP_LNK -Force
-        Write-Verbose 'Startup shortcut removed.'
-    }
-    Write-Verbose 'Removing from User PATH...'
-    Remove-FromUserPath $INSTALL_DIR
-    Write-Verbose 'PATH entry removed.'
-    if (Test-Path $INSTALL_DIR) {
-        Remove-Item $INSTALL_DIR -Recurse -Force
-        Write-Verbose "Deleted: $INSTALL_DIR"
+    try {
+        if (Test-Path $STARTUP_LNK) {
+            Remove-Item $STARTUP_LNK -Force
+            Write-Verbose 'Startup shortcut removed.'
+        }
+        Write-Verbose 'Removing from User PATH...'
+        Remove-FromUserPath $INSTALL_DIR
+        Write-Verbose 'PATH entry removed.'
+        if (Test-Path $INSTALL_DIR) {
+            Remove-Item $INSTALL_DIR -Recurse -Force
+            Write-Verbose "Deleted: $INSTALL_DIR"
+        }
+    } catch {
+        throw "Failed to clean up files during uninstallation. Details: $($_.Exception.Message)"
     }
     if ($uninstallAhk) {
         Write-Verbose 'Uninstalling AutoHotkey...'
@@ -364,14 +399,18 @@ function Invoke-Uninstall {
             $ahkReg = Get-ItemProperty $regPath -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like '*AutoHotkey*' } | Select-Object -First 1
             if ($ahkReg -and $ahkReg.UninstallString) {
                 Write-Verbose 'Launching AutoHotkey uninstaller...'
-                if ($ahkReg.UninstallString -match '^"([^"]+)"\s+(.*)$') {
-                    $exe = $Matches[1]
-                    $uninstallArgs = $Matches[2]
-                    Start-Process -FilePath $exe -ArgumentList "$uninstallArgs /silent" -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
-                } else {
-                    Start-Process -FilePath $ahkReg.UninstallString -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
+                try {
+                    if ($ahkReg.UninstallString -match '^"([^"]+)"\s+(.*)$') {
+                        $exe = $Matches[1]
+                        $uninstallArgs = $Matches[2]
+                        Start-Process -FilePath $exe -ArgumentList "$uninstallArgs /silent" -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
+                    } else {
+                        Start-Process -FilePath $ahkReg.UninstallString -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
+                    }
+                    Write-Verbose 'AutoHotkey uninstaller executed.'
+                } catch {
+                    Write-Warning 'AutoHotkey registry uninstaller execution failed. Please uninstall manually via Settings.'
                 }
-                Write-Verbose 'AutoHotkey uninstaller executed.'
             } else {
                 Write-Warning 'Could not find AutoHotkey uninstaller in registry. Please uninstall manually via Settings.'
             }
@@ -408,8 +447,7 @@ try {
         'uninstall' { Invoke-Uninstall }
         'help'      { Invoke-Help }
         Default {
-            Write-Error "Invalid command received: $Command"
-            exit 1
+            throw "Invalid command received: $Command"
         }
     }
 } finally {
