@@ -57,12 +57,14 @@ if ($devTag) {
     Write-Host "  -> Custom Dev Tag set: $devTag. Adjusting release URLs in scripts..." -ForegroundColor Cyan
 }
 
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+
 $CLI_DEST = Join-Path $DIST 'xtkeys.ps1'
 $cliContent = Get-Content $CLI_SRC -Raw
 if ($devTag) {
     $cliContent = $cliContent -replace 'releases/latest/download', "releases/download/$devTag"
 }
-[System.IO.File]::WriteAllText($CLI_DEST, $cliContent, [System.Text.Encoding]::UTF8)
+[System.IO.File]::WriteAllText($CLI_DEST, $cliContent, $utf8)
 Write-Host '  OK dist/xtkeys.ps1' -ForegroundColor Green
 
 $INSTALL_DEST = Join-Path $DIST 'install.ps1'
@@ -70,7 +72,7 @@ $installContent = Get-Content $INSTALL_SRC -Raw
 if ($devTag) {
     $installContent = $installContent -replace 'releases/latest/download', "releases/download/$devTag"
 }
-[System.IO.File]::WriteAllText($INSTALL_DEST, $installContent, [System.Text.Encoding]::UTF8)
+[System.IO.File]::WriteAllText($INSTALL_DEST, $installContent, $utf8)
 Write-Host '  OK dist/install.ps1' -ForegroundColor Green
 
 # Authenticode Script Signing Step
