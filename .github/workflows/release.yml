@@ -13,6 +13,9 @@ jobs:
   build-and-release:
     name: Build & Publish Release
     runs-on: windows-latest
+    env:
+      CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
     steps:
       - name: Checkout Repository
@@ -25,7 +28,7 @@ jobs:
           echo "DEV_TAG=dev-$CLEANED_BRANCH" >> $GITHUB_ENV
 
       - name: Import Code-Signing Certificate
-        if: ${{ secrets.CERTIFICATE_BASE64 != '' }}
+        if: ${{ env.CERTIFICATE_BASE64 != '' }}
         shell: powershell
         run: |
           $certBytes = [System.Convert]::FromBase64String($env:CERTIFICATE_BASE64)
@@ -35,9 +38,6 @@ jobs:
           $store.Add($pfx)
           $store.Close()
           Add-Content -Path $env:GITHUB_ENV -Value "SIGNING_CERT_THUMBPRINT=$($pfx.Thumbprint)"
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
       - name: Run Build Script
         shell: powershell
