@@ -108,7 +108,7 @@ function Invoke-SecureDownload ([string]$Url, [string]$OutFile) {
 function Write-Bar {
     param([double]$Percent, [int]$Width = 56)
     $pct    = [math]::Min(100, [math]::Max(0, $Percent))
-    $pctStr = '{0:0.1}%' -f $pct
+    $pctStr = '{0:0}%' -f $pct
     $fill   = [math]::Min($Width, [math]::Round($pct / 100 * $Width))
     $bar    = ('=' * $fill) + (' ' * ($Width - $fill))
     $mid    = [math]::Floor(($Width - $pctStr.Length) / 2)
