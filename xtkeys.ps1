@@ -1,3 +1,59 @@
+<#
+.SYNOPSIS
+    xtkeys is a command-line installer and management tool for AutoHotkey-based system hotkeys.
+
+.DESCRIPTION
+    This script downloads, installs, and updates an AutoHotkey hotkey script. It registers
+    itself as a global CLI tool (xtkeys) by updating the user's PATH environment variable and
+    creating a startup shortcut. It also allows checking the status of running hotkey scripts,
+    restarting them, and performing clean uninstalls.
+
+.PARAMETER Command
+    The action command to execute. Valid values are:
+    - install: Installs/re-installs AutoHotkey, copies the script, configures PATH, startup shortcut, and launches hotkeys.
+    - status: Displays the execution status of the hotkeys script and its running PID.
+    - update: Pulls the latest version of the hotkeys and xtkeys script from GitHub and restarts them.
+    - restart: Terminate and restart the running AutoHotkey instance of hotkeys.
+    - uninstall: Stop the hotkeys process, delete installation directory, and clean up PATH/startup links.
+    - help: Display help instructions and usage examples.
+
+.EXAMPLE
+    .\xtkeys.ps1 -Command install
+    Runs the installation workflow for the hotkeys script and dependencies.
+
+.EXAMPLE
+    .\xtkeys.ps1 status
+    Checks if hotkeys.ahk is currently running and prints its process ID.
+
+.EXAMPLE
+    .\xtkeys.ps1 update
+    Downloads the latest release of hotkeys.ahk and xtkeys.ps1 and restarts the script.
+
+.EXAMPLE
+    .\xtkeys.ps1 restart
+    Restarts the hotkeys application background process.
+
+.EXAMPLE
+    .\xtkeys.ps1 uninstall
+    Uninstalls the application, removes the startup link, and cleans up the user PATH.
+
+.EXAMPLE
+    .\xtkeys.ps1 help
+    Displays the user help screen.
+
+.NOTES
+    Author: RameshXT
+    Repository: hotkeys
+#>
+[CmdletBinding()]
+[OutputType([void])]
+param(
+    [Parameter(Mandatory = $false, Position = 0)]
+    [ValidateNotNullOrEmpty()]
+    [ValidateSet('install', 'status', 'update', 'restart', 'uninstall', 'help')]
+    [string]$Command = $(if ([string]::IsNullOrEmpty($MyInvocation.ScriptName)) { 'install' } else { 'help' })
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $REPO_OWNER  = 'RameshXT'
@@ -443,8 +499,8 @@ function Invoke-Uninstall {
                 Write-Step 'Launching AutoHotkey uninstaller...'
                 if ($ahkReg.UninstallString -match '^"([^"]+)"\s+(.*)$') {
                     $exe = $Matches[1]
-                    $args = $Matches[2]
-                    Start-Process -FilePath $exe -ArgumentList "$args /silent" -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
+                    $uninstallArgs = $Matches[2]
+                    Start-Process -FilePath $exe -ArgumentList "$uninstallArgs /silent" -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
                 } else {
                     Start-Process -FilePath $ahkReg.UninstallString -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
                 }
@@ -477,15 +533,15 @@ function Invoke-Help {
     Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/xtkeys.ps1 | iex" -ForegroundColor DarkCyan
     Write-Host ''
 }
-$scriptName = $MyInvocation.ScriptName
-$cmd        = if ($args.Count -gt 0) { $args[0].ToLower() } else { '' }
-$isPiped    = [string]::IsNullOrEmpty($scriptName) -and ($cmd -eq '' -or $cmd -eq 'install')
-if     ($isPiped -or $cmd -eq 'install')   { Invoke-Install   }
-elseif ($cmd -eq 'status')                 { Invoke-Status    }
-elseif ($cmd -eq 'update')                 { Invoke-Update    }
-elseif ($cmd -eq 'restart')                { Invoke-Restart   }
-elseif ($cmd -eq 'uninstall')              { Invoke-Uninstall }
-elseif ($cmd -eq 'help' -or $cmd -eq '-h' -or $cmd -eq '--help') { Invoke-Help }
-else {
-    Invoke-Help
+switch ($Command) {
+    'install'   { Invoke-Install }
+    'status'    { Invoke-Status }
+    'update'    { Invoke-Update }
+    'restart'   { Invoke-Restart }
+    'uninstall' { Invoke-Uninstall }
+    'help'      { Invoke-Help }
+    Default {
+        Write-Error "Invalid command received: $Command"
+        exit 1
+    }
 }
