@@ -5,9 +5,26 @@ $DIST     = Join-Path $ROOT 'dist'
 $AHK_SRC  = Join-Path $ROOT 'hotkeys.ahk'
 $CLI_SRC  = Join-Path $ROOT 'xtkeys.ps1'
 $INSTALL_SRC = Join-Path $ROOT 'install.ps1'
+
 if (-not (Test-Path $AHK_SRC)) { throw "Missing source: $AHK_SRC" }
 if (-not (Test-Path $CLI_SRC)) { throw "Missing source: $CLI_SRC" }
 if (-not (Test-Path $INSTALL_SRC)) { throw "Missing source: $INSTALL_SRC" }
+
+Write-Host ''
+Write-Host '  Linting PowerShell scripts with PSScriptAnalyzer...' -ForegroundColor Cyan
+if (Get-Module -ListAvailable -Name PSScriptAnalyzer) {
+    $issues = Invoke-ScriptAnalyzer -Path $CLI_SRC, $INSTALL_SRC -Severity Error, Warning -ErrorAction SilentlyContinue
+    if ($issues) {
+        Write-Host '  XX Linting failed! Issues found:' -ForegroundColor Red
+        $issues | Out-String | Write-Host -ForegroundColor Yellow
+        throw "Build aborted: Linting issues found in scripts."
+    } else {
+        Write-Host '  OK Linting passed.' -ForegroundColor Green
+    }
+} else {
+    Write-Host '  !! PSScriptAnalyzer module not found. Skipping linting step.' -ForegroundColor Yellow
+}
+
 Write-Host ''
 Write-Host '  Building release artifacts...' -ForegroundColor Cyan
 Write-Host ''
