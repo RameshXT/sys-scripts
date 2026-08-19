@@ -1,39 +1,15 @@
 <#
 .SYNOPSIS
-    xtkeys is a command-line management tool for AutoHotkey-based system hotkeys.
+    xtkeys installer script.
 
 .DESCRIPTION
-    This script manages an AutoHotkey hotkey script. It allows checking the status of running
-    hotkey scripts, restarting them, updating them from GitHub, performing clean uninstalls,
-    and showing help.
-
-.PARAMETER Command
-    The action command to execute. Valid values are:
-    - status: Displays the execution status of the hotkeys script and its running PID.
-    - update: Pulls the latest version of the hotkeys and xtkeys script from GitHub and restarts them.
-    - restart: Terminate and restart the running AutoHotkey instance of hotkeys.
-    - uninstall: Stop the hotkeys process, delete installation directory, and clean up PATH/startup links.
-    - help: Display help instructions and usage examples.
+    This script downloads and installs AutoHotkey, the hotkeys.ahk script, and the xtkeys CLI
+    manager. It adds the installation folder to the user's PATH environment variable and
+    creates a Startup shortcut to automatically run the hotkey script on login.
 
 .EXAMPLE
-    .\xtkeys.ps1 status
-    Checks if hotkeys.ahk is currently running and prints its process ID.
-
-.EXAMPLE
-    .\xtkeys.ps1 update
-    Downloads the latest release of hotkeys.ahk and xtkeys.ps1 and restarts the script.
-
-.EXAMPLE
-    .\xtkeys.ps1 restart
-    Restarts the hotkeys application background process.
-
-.EXAMPLE
-    .\xtkeys.ps1 uninstall
-    Uninstalls the application, removes the startup link, and cleans up the user PATH.
-
-.EXAMPLE
-    .\xtkeys.ps1 help
-    Displays the user help screen.
+    .\install.ps1
+    Runs the full installation/re-installation workflow.
 
 .NOTES
     Author: RameshXT
@@ -41,12 +17,7 @@
 #>
 [CmdletBinding()]
 [OutputType([void])]
-param(
-    [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateNotNullOrEmpty()]
-    [ValidateSet('status', 'update', 'restart', 'uninstall', 'help')]
-    [string]$Command = 'help'
-)
+param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -196,11 +167,24 @@ function Stop-Hotkeys {
 function Start-Hotkeys ([string]$AhkExe) {
     Start-Process -FilePath $AhkExe -ArgumentList "`"$AHK_FILE`"" -WindowStyle Hidden
 }
-function Remove-FromUserPath ([string]$Dir) {
+function Add-ToUserPath ([string]$Dir) {
     $cur   = [Environment]::GetEnvironmentVariable('PATH', 'User')
-    if ($null -eq $cur) { return }
-    $parts = $cur -split ';' | Where-Object { $_ -ne '' -and $_ -ne $Dir }
-    [Environment]::SetEnvironmentVariable('PATH', ($parts -join ';'), 'User')
+    if ($null -eq $cur) { $cur = '' }
+    $parts = $cur -split ';' | Where-Object { $_ -ne '' }
+    if ($parts -notcontains $Dir) {
+        [Environment]::SetEnvironmentVariable('PATH', (($parts + $Dir) -join ';'), 'User')
+        $env:PATH = $env:PATH + ';' + $Dir
+    }
+}
+function New-StartupShortcut ([string]$AhkExe) {
+    $wsh      = New-Object -ComObject WScript.Shell
+    $lnk      = $wsh.CreateShortcut($STARTUP_LNK)
+    $lnk.TargetPath       = $AhkExe
+    $lnk.Arguments        = "`"$AHK_FILE`""
+    $lnk.WorkingDirectory = $INSTALL_DIR
+    $lnk.Description      = 'xt Hotkeys - AutoHotkey'
+    $lnk.IconLocation     = "$AhkExe,0"
+    $lnk.Save()
 }
 function Write-CliWrapper {
     $bat = "@echo off`r`npowershell.exe -NoProfile -ExecutionPolicy Bypass -File `"%~dp0xtkeys.ps1`" %*`r`n"
@@ -238,6 +222,69 @@ function Test-AhkVersionOk ([string]$ExePath) {
     if ($null -eq $v) { return $false }
     return $v -ge $AHK_MIN_VER
 }
+function Install-AutoHotkey {
+    Write-Verbose "Checking for AutoHotkey >= v$AHK_WINGET_VER..."
+    $existing = Get-AhkExe
+    if ($null -ne $existing) {
+        if (Test-AhkVersionOk $existing) {
+            $v = Get-AhkVersion $existing
+            Write-Verbose "AutoHotkey v$v found (meets v$AHK_WINGET_VER requirement): $existing"
+            return $existing
+        } else {
+            $v = Get-AhkVersion $existing
+            Write-Warning "AutoHotkey v$v found but is too old (need >= v$AHK_WINGET_VER). Installing correct version..."
+        }
+    }
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Verbose "Trying winget install --force for AutoHotkey v$AHK_WINGET_VER..."
+        try {
+            winget install --id $AHK_WINGET_ID --version $AHK_WINGET_VER `
+                --silent --force --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+            Start-Sleep -Seconds 2
+            $exe = Get-AhkExe
+            if ($null -ne $exe -and (Test-AhkVersionOk $exe)) {
+                $v = Get-AhkVersion $exe
+                Write-Verbose "AutoHotkey v$v installed via winget: $exe"
+                return $exe
+            }
+        } catch { Write-Warning "winget install failed: $($_.Exception.Message)" }
+        Write-Verbose 'Trying winget upgrade --force...'
+        try {
+            winget upgrade --id $AHK_WINGET_ID --version $AHK_WINGET_VER `
+                --silent --force --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+            Start-Sleep -Seconds 2
+            $exe = Get-AhkExe
+            if ($null -ne $exe -and (Test-AhkVersionOk $exe)) {
+                $v = Get-AhkVersion $exe
+                Write-Verbose "AutoHotkey v$v upgraded via winget: $exe"
+                return $exe
+            }
+        } catch { Write-Warning "winget upgrade failed: $($_.Exception.Message)" }
+        Write-Warning 'winget could not install v2.0.26+. Falling back to direct download...'
+    }
+    $tmpZip = Join-Path $env:TEMP "ahk-v${AHK_WINGET_VER}.zip"
+    Write-Verbose "Downloading AutoHotkey v$AHK_WINGET_VER portable ZIP from GitHub Releases..."
+    Invoke-SecureDownloadWithProgress $AHK_PORTABLE_URL $tmpZip "Downloading AutoHotkey v$AHK_WINGET_VER"
+    Write-Verbose 'Extracting AutoHotkey portable...'
+    if (Test-Path $AHK_PORTABLE_DIR) {
+        Remove-Item $AHK_PORTABLE_DIR -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    New-Item -ItemType Directory -Path $AHK_PORTABLE_DIR -Force | Out-Null
+    Expand-Archive -Path $tmpZip -DestinationPath $AHK_PORTABLE_DIR -Force
+    Remove-Item $tmpZip -Force -ErrorAction SilentlyContinue
+    $exe = Get-AhkExe
+    if ($null -eq $exe) {
+        throw 'AutoHotkey install failed - exe not found after extraction. Check https://www.autohotkey.com/download/'
+    }
+    if (-not (Test-AhkVersionOk $exe)) {
+        $v = Get-AhkVersion $exe
+        throw ("AutoHotkey v$v was found but does not meet the v$AHK_WINGET_VER requirement.`n" +
+               "  Please install v$AHK_WINGET_VER manually: https://www.autohotkey.com/download/")
+    }
+    $v = Get-AhkVersion $exe
+    Write-Verbose "AutoHotkey v$v ready: $exe"
+    return $exe
+}
 function Get-LatestHotkeys {
     $tmpAhk  = Join-Path $env:TEMP 'hotkeys_dl.ahk'
     $tmpHash = Join-Path $env:TEMP 'hotkeys_dl.sha256'
@@ -256,162 +303,67 @@ function Get-LatestHotkeys {
     }
     return $tmpAhk
 }
-function Invoke-Status {
-    Write-Host ''
-    if (Test-HotkeysRunning) {
-        $hpid = Get-HotkeysPid
-        Write-Host "  OK  hotkeys.ahk is RUNNING  (PID: $hpid)" -ForegroundColor Green
-    } else {
-        Write-Host '  XX  hotkeys.ahk is NOT running.' -ForegroundColor Red
-        Write-Host '      Run `xtkeys restart` to start it.' -ForegroundColor Cyan
-    }
-    Write-Host "  Dir    : $INSTALL_DIR" -ForegroundColor DarkGray
-    Write-Host "  Script : $AHK_FILE"   -ForegroundColor DarkGray
-    Write-Host ''
-}
-function Invoke-Update {
+function Invoke-Install {
     Write-Banner
-    Write-Host '  Updating hotkeys...' -ForegroundColor White
+    Write-Host '  Installing hotkeys...' -ForegroundColor White
     Write-Host ''
     Set-SecureTls
-    if (-not (Test-Path $INSTALL_DIR)) {
-        Write-Error 'xtkeys is not installed. Run the web installer first:'
-        Write-Host "  irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex"
-        exit 1
-    }
-    $ahkExe = Get-AhkExe
-    if ($null -eq $ahkExe) { throw 'AutoHotkey not found. Reinstall xtkeys.' }
+    Write-Verbose "Setting up install directory: $INSTALL_DIR"
+    New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
+    Write-Verbose 'Directory ready.'
+    $ahkExe = Install-AutoHotkey
     $tmp = Get-LatestHotkeys
-    Stop-Hotkeys
     Copy-Item $tmp $AHK_FILE -Force
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-    Write-Verbose 'hotkeys.ahk updated.'
-    Write-Verbose 'Updating xtkeys CLI...'
-    Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
-    Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+    Write-Verbose "hotkeys.ahk -> $AHK_FILE"
+    
+    $self = $MyInvocation.ScriptName
+    $scriptDir = if ($self) { Split-Path $self -Parent } else { $null }
+    $localCli = if ($scriptDir) { Join-Path $scriptDir 'xtkeys.ps1' } else { $null }
+    
+    if ($self -and (Test-Path $self) -and $localCli -and (Test-Path $localCli)) {
+        Copy-Item $localCli $CLI_FILE -Force
+        Copy-Item $self (Join-Path $INSTALL_DIR 'install.ps1') -Force
+    } else {
+        Write-Verbose 'Downloading xtkeys.ps1 for CLI...'
+        Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
+        Write-Verbose 'Downloading install.ps1...'
+        Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+    }
+    Write-Verbose "xtkeys CLI -> $CLI_FILE"
     Write-CliWrapper
-    Set-ScriptExecutionPolicy   
-    Write-Verbose 'xtkeys CLI updated.'
-    Write-Verbose 'Restarting hotkeys...'
+    Set-ScriptExecutionPolicy
+    Write-Verbose 'xtkeys.cmd wrapper created.'
+    Write-Verbose 'Adding to User PATH...'
+    Add-ToUserPath $INSTALL_DIR
+    Write-Verbose "$INSTALL_DIR added to User PATH."
+    Write-Verbose 'Creating Startup shortcut...'
+    New-StartupShortcut $ahkExe
+    Write-Verbose "Startup shortcut: $STARTUP_LNK"
+    Write-Verbose 'Launching hotkeys now...'
+    Stop-Hotkeys
     Start-Hotkeys $ahkExe
     Start-Sleep -Seconds 1
+    Write-Host ''
     if (Test-HotkeysRunning) {
-        Write-Host '  OK hotkeys.ahk running on latest version.' -ForegroundColor Green
+        Write-Host '  OK hotkeys.ahk is RUNNING!' -ForegroundColor Green
     } else {
-        Write-Warning 'hotkeys may not have started - run `xtkeys status`.'
+        Write-Warning 'hotkeys.ahk may not have started yet - run `xtkeys status` to check.'
     }
     Write-Host ''
-}
-function Invoke-Restart {
-    $ahkExe = Get-AhkExe
-    if ($null -eq $ahkExe) {
-        Write-Error 'AutoHotkey not found.'
-        exit 1
-    }
-    Write-Verbose 'Stopping hotkeys...'
-    Stop-Hotkeys
-    Write-Verbose 'Starting hotkeys...'
-    Start-Hotkeys $ahkExe
-    Start-Sleep -Seconds 1
-    if (Test-HotkeysRunning) {
-        Write-Host '  OK hotkeys.ahk restarted.' -ForegroundColor Green
-    } else {
-        Write-Warning 'hotkeys may not have started - run `xt status`.'
-    }
-}
-function Invoke-Uninstall {
-    Write-Host ''
-    Write-Host '  Uninstalling hotkeys...' -ForegroundColor Cyan
-    Write-Host ''
-    $uninstallAhk = $false
-    if ($Host.UI.RawUI -ne $null -and $MyInvocation.ScriptName) {
-        $response = Read-Host "  Do you want to uninstall AutoHotkey (compiler) as well? [y/N]"
-        if ($response -match '^[yY]') {
-            $uninstallAhk = $true
-        }
-    }
-    Write-Verbose 'Stopping hotkeys process...'
-    Stop-Hotkeys
-    Write-Verbose 'Process stopped.'
-    if (Test-Path $STARTUP_LNK) {
-        Remove-Item $STARTUP_LNK -Force
-        Write-Verbose 'Startup shortcut removed.'
-    }
-    Write-Verbose 'Removing from User PATH...'
-    Remove-FromUserPath $INSTALL_DIR
-    Write-Verbose 'PATH entry removed.'
-    if (Test-Path $INSTALL_DIR) {
-        Remove-Item $INSTALL_DIR -Recurse -Force
-        Write-Verbose "Deleted: $INSTALL_DIR"
-    }
-    if ($uninstallAhk) {
-        Write-Verbose 'Uninstalling AutoHotkey...'
-        $uninstalled = $false
-        if (Get-Command winget -ErrorAction SilentlyContinue) {
-            try {
-                winget uninstall --id $AHK_WINGET_ID --silent --accept-source-agreements 2>&1 | Out-Null
-                Write-Verbose 'AutoHotkey uninstalled via winget.'
-                $uninstalled = $true
-            } catch {
-                Write-Warning 'winget uninstall failed. Trying manual uninstaller...'
-            }
-        }
-        if (-not $uninstalled) {
-            $regPath = @(
-                "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
-                "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*"
-            )
-            $ahkReg = Get-ItemProperty $regPath -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like '*AutoHotkey*' } | Select-Object -First 1
-            if ($ahkReg -and $ahkReg.UninstallString) {
-                Write-Verbose 'Launching AutoHotkey uninstaller...'
-                if ($ahkReg.UninstallString -match '^"([^"]+)"\s+(.*)$') {
-                    $exe = $Matches[1]
-                    $uninstallArgs = $Matches[2]
-                    Start-Process -FilePath $exe -ArgumentList "$uninstallArgs /silent" -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
-                } else {
-                    Start-Process -FilePath $ahkReg.UninstallString -Wait -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
-                }
-                Write-Verbose 'AutoHotkey uninstaller executed.'
-            } else {
-                Write-Warning 'Could not find AutoHotkey uninstaller in registry. Please uninstall manually via Settings.'
-            }
-        }
-    }
-    Write-Host ''
-    Write-Host '  OK  Uninstall complete. hotkeys and xtkeys fully removed.' -ForegroundColor Green
-    if (-not $uninstallAhk) {
-        Write-Host '  Note: AutoHotkey was NOT uninstalled (may be used elsewhere).' -ForegroundColor DarkGray
-    }
-    Write-Host ''
-}
-function Invoke-Help {
-    Write-Host ''
-    Write-Host '  xtkeys - Hotkeys Installer & CLI' -ForegroundColor Magenta
-    Write-Host ''
-    Write-Host '  Commands:' -ForegroundColor White
-    Write-Host '    xtkeys status      Check if hotkeys are running'     -ForegroundColor Cyan
-    Write-Host '    xtkeys update      Download latest and restart'      -ForegroundColor Cyan
-    Write-Host '    xtkeys restart     Kill and re-launch hotkeys'       -ForegroundColor Cyan
-    Write-Host '    xtkeys uninstall   Remove everything cleanly'        -ForegroundColor Cyan
-    Write-Host '    xtkeys help        Show this help message'           -ForegroundColor Cyan
-    Write-Host ''
-    Write-Host '  Web install (any Windows machine):' -ForegroundColor White
-    Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex" -ForegroundColor DarkCyan
+    Write-Host '  ========================================' -ForegroundColor Green
+    Write-Host '  Installation complete!' -ForegroundColor Green
+    Write-Host '  Restart your terminal, then use:' -ForegroundColor White
+    Write-Host '    xtkeys status    - check if running'    -ForegroundColor Cyan
+    Write-Host '    xtkeys update    - pull latest version' -ForegroundColor Cyan
+    Write-Host '    xtkeys uninstall - remove everything'   -ForegroundColor Cyan
+    Write-Host '    xtkeys help      - show this help message' -ForegroundColor Cyan
+    Write-Host '  ========================================' -ForegroundColor Green
     Write-Host ''
 }
 
 try {
-    switch ($Command) {
-        'status'    { Invoke-Status }
-        'update'    { Invoke-Update }
-        'restart'   { Invoke-Restart }
-        'uninstall' { Invoke-Uninstall }
-        'help'      { Invoke-Help }
-        Default {
-            Write-Error "Invalid command received: $Command"
-            exit 1
-        }
-    }
+    Invoke-Install
 } finally {
     if ($host.PrivateData) {
         if ($originalVerboseColor) { $host.PrivateData.VerboseForegroundColor = $originalVerboseColor }

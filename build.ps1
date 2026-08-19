@@ -4,8 +4,10 @@ $ROOT     = $PSScriptRoot
 $DIST     = Join-Path $ROOT 'dist'
 $AHK_SRC  = Join-Path $ROOT 'hotkeys.ahk'
 $CLI_SRC  = Join-Path $ROOT 'xtkeys.ps1'
+$INSTALL_SRC = Join-Path $ROOT 'install.ps1'
 if (-not (Test-Path $AHK_SRC)) { throw "Missing source: $AHK_SRC" }
 if (-not (Test-Path $CLI_SRC)) { throw "Missing source: $CLI_SRC" }
+if (-not (Test-Path $INSTALL_SRC)) { throw "Missing source: $INSTALL_SRC" }
 Write-Host ''
 Write-Host '  Building release artifacts...' -ForegroundColor Cyan
 Write-Host ''
@@ -25,8 +27,11 @@ Write-Host "  OK dist/hotkeys.sha256  ($hash)" -ForegroundColor Green
 $CLI_DEST = Join-Path $DIST 'xtkeys.ps1'
 Copy-Item $CLI_SRC $CLI_DEST -Force
 Write-Host '  OK dist/xtkeys.ps1' -ForegroundColor Green
+$INSTALL_DEST = Join-Path $DIST 'install.ps1'
+Copy-Item $INSTALL_SRC $INSTALL_DEST -Force
+Write-Host '  OK dist/install.ps1' -ForegroundColor Green
 $ZIP_DEST = Join-Path $DIST 'hotkeys.zip'
-Compress-Archive -Path $AHK_DEST, $CLI_DEST -DestinationPath $ZIP_DEST -Force
+Compress-Archive -Path $AHK_DEST, $CLI_DEST, $INSTALL_DEST -DestinationPath $ZIP_DEST -Force
 Write-Host '  OK dist/hotkeys.zip' -ForegroundColor Green
 Write-Host ''
 Write-Host '  Release artifacts ready in dist/:' -ForegroundColor White
