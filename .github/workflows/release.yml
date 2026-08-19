@@ -13,10 +13,31 @@ jobs:
   build-and-release:
     name: Build & Publish Release
     runs-on: windows-latest
+    env:
+      CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Clean Branch Name for Tag
+        shell: bash
+        run: |
+          CLEANED_BRANCH=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
+          echo "DEV_TAG=dev-$CLEANED_BRANCH" >> $GITHUB_ENV
+
+      - name: Import Code-Signing Certificate
+        if: ${{ env.CERTIFICATE_BASE64 != '' }}
+        shell: powershell
+        run: |
+          $certBytes = [System.Convert]::FromBase64String($env:CERTIFICATE_BASE64)
+          $pfx = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certBytes, $env:CERTIFICATE_PASSWORD, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new([System.Security.Cryptography.X509Certificates.StoreName]::My, [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+          $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+          $store.Add($pfx)
+          $store.Close()
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNING_CERT_THUMBPRINT=$($pfx.Thumbprint)"
 
       - name: Run Build Script
         shell: powershell
@@ -25,15 +46,15 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Latest' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref_name == 'main' && 'latest' || env.DEV_TAG) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref_name == 'main' && 'Latest' || format('Dev Release - {0}', github.ref_name)) }}
           body: |
             ## Install
 
             Run this in any PowerShell window on any Windows machine:
 
             ```powershell
-            irm https://github.com/${{ github.repository }}/releases/latest/download/xtkeys.ps1 | iex
+            irm https://github.com/${{ github.repository }}/releases/download/${{ github.ref_type == 'tag' && github.ref_name || (github.ref_name == 'main' && 'latest' || env.DEV_TAG) }}/install.ps1 | iex
             ```
 
             ## What's included
@@ -41,7 +62,8 @@ jobs:
             |---|---|
             | `hotkeys.ahk` | The AutoHotkey script |
             | `hotkeys.sha256` | SHA-256 checksum for verification |
-            | `xtkeys.ps1` | Installer & CLI |
+            | `install.ps1` | The one-time installer script |
+            | `xtkeys.ps1` | Runtime management CLI tool |
             | `hotkeys.zip` | Full bundle (ahk + installer) |
 
             ---
@@ -49,15 +71,17 @@ jobs:
           files: |
             dist/hotkeys.ahk
             dist/hotkeys.sha256
+            dist/install.ps1
             dist/xtkeys.ps1
             dist/hotkeys.zip
           draft: false
-          prerelease: false
-          make_latest: true
+          prerelease: ${{ github.ref_name != 'main' && github.ref_type != 'tag' }}
+          make_latest: ${{ github.ref_name == 'main' || github.ref_type == 'tag' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Update 'latest' git tag to current commit
-        if: github.ref_type != 'tag'
+        if: github.ref_type != 'tag' && github.ref_name == 'main'
         shell: bash
         run: |
           git config user.name  "github-actions[bot]"
