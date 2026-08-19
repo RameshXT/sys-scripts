@@ -41,12 +41,43 @@ $hashLine = "$hash  hotkeys.ahk"
 $HASH_DEST = Join-Path $DIST 'hotkeys.sha256'
 [System.IO.File]::WriteAllText($HASH_DEST, $hashLine, [System.Text.Encoding]::ASCII)
 Write-Host "  OK dist/hotkeys.sha256  ($hash)" -ForegroundColor Green
+
 $CLI_DEST = Join-Path $DIST 'xtkeys.ps1'
 Copy-Item $CLI_SRC $CLI_DEST -Force
 Write-Host '  OK dist/xtkeys.ps1' -ForegroundColor Green
+
 $INSTALL_DEST = Join-Path $DIST 'install.ps1'
 Copy-Item $INSTALL_SRC $INSTALL_DEST -Force
 Write-Host '  OK dist/install.ps1' -ForegroundColor Green
+
+# Authenticode Script Signing Step
+Write-Host ''
+Write-Host '  Checking for Code Signing Certificate...' -ForegroundColor Cyan
+$certThumbprint = $env:SIGNING_CERT_THUMBPRINT
+$cert = $null
+if ($certThumbprint) {
+    $cert = Get-Item "Cert:\CurrentUser\My\$certThumbprint" -ErrorAction SilentlyContinue
+}
+if (-not $cert) {
+    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue | Select-Object -First 1
+}
+
+if ($cert) {
+    Write-Host "  -> Found signing certificate: $($cert.Subject)" -ForegroundColor Cyan
+    Write-Host '  Signing scripts...' -ForegroundColor Cyan
+    foreach ($file in @($CLI_DEST, $INSTALL_DEST)) {
+        $sig = Set-AuthenticodeSignature -FilePath $file -Certificate $cert -TimestampServer 'http://timestamp.digicert.com' -ErrorAction SilentlyContinue
+        if ($sig.Status -eq 'Valid') {
+            Write-Host "  OK Signed: $($file | Split-Path -Leaf)" -ForegroundColor Green
+        } else {
+            Write-Warning "Failed to sign $($file | Split-Path -Leaf). Status: $($sig.Status)"
+        }
+    }
+} else {
+    Write-Host '  -> No code-signing certificate found. Skipping script signing.' -ForegroundColor DarkGray
+}
+
+Write-Host ''
 $ZIP_DEST = Join-Path $DIST 'hotkeys.zip'
 Compress-Archive -Path $AHK_DEST, $CLI_DEST, $INSTALL_DEST -DestinationPath $ZIP_DEST -Force
 Write-Host '  OK dist/hotkeys.zip' -ForegroundColor Green

@@ -18,6 +18,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Import Code-Signing Certificate
+        if: ${{ secrets.CERTIFICATE_BASE64 != '' }}
+        shell: powershell
+        run: |
+          $certBytes = [System.Convert]::FromBase64String($env:CERTIFICATE_BASE64)
+          $pfx = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certBytes, $env:CERTIFICATE_PASSWORD, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new([System.Security.Cryptography.X509Certificates.StoreName]::My, [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser)
+          $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+          $store.Add($pfx)
+          $store.Close()
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNING_CERT_THUMBPRINT=$($pfx.Thumbprint)"
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+
       - name: Run Build Script
         shell: powershell
         run: .\build.ps1
