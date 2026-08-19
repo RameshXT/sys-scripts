@@ -13,7 +13,10 @@ if (-not (Test-Path $INSTALL_SRC)) { throw "Missing source: $INSTALL_SRC" }
 Write-Host ''
 Write-Host '  Linting PowerShell scripts with PSScriptAnalyzer...' -ForegroundColor Cyan
 if (Get-Module -ListAvailable -Name PSScriptAnalyzer) {
-    $issues = Invoke-ScriptAnalyzer -Path $CLI_SRC, $INSTALL_SRC -Severity Error, Warning -ErrorAction SilentlyContinue
+    $issues = @()
+    foreach ($file in @($CLI_SRC, $INSTALL_SRC)) {
+        $issues += Invoke-ScriptAnalyzer -Path $file -Severity Error, Warning -ErrorAction SilentlyContinue
+    }
     if ($issues) {
         Write-Host '  XX Linting failed! Issues found:' -ForegroundColor Red
         $issues | Out-String | Write-Host -ForegroundColor Yellow
