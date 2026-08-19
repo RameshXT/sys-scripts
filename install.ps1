@@ -53,9 +53,9 @@ $AHK_PORTABLE_DIR = Join-Path $INSTALL_DIR 'ahk'
 
 function Write-Banner {
     Write-Host ''
-    Write-Host '  ========================================' -ForegroundColor Magenta
-    Write-Host '         xtkeys  .  Hotkeys Installer        ' -ForegroundColor Magenta
-    Write-Host '  ========================================' -ForegroundColor Magenta
+    Write-Host '  ========================================' -ForegroundColor Cyan
+    Write-Host '         xtkeys  .  Hotkeys Installer        ' -ForegroundColor Cyan
+    Write-Host '  ========================================' -ForegroundColor Cyan
     Write-Host ''
 }
 function Set-SecureTls {
@@ -400,14 +400,14 @@ function Invoke-Install {
         Write-Warning 'hotkeys.ahk may not have started yet - run `xtkeys status` to check.'
     }
     Write-Host ''
-    Write-Host '  ========================================' -ForegroundColor Green
-    Write-Host '  Installation complete!' -ForegroundColor Green
+    Write-Host '  ========================================' -ForegroundColor Cyan
+    Write-Host '  Installation complete!' -ForegroundColor Cyan
     Write-Host '  Restart your terminal, then use:' -ForegroundColor White
     Write-Host '    xtkeys status    - check if running'    -ForegroundColor Cyan
     Write-Host '    xtkeys update    - pull latest version' -ForegroundColor Cyan
     Write-Host '    xtkeys uninstall - remove everything'   -ForegroundColor Cyan
     Write-Host '    xtkeys help      - show this help message' -ForegroundColor Cyan
-    Write-Host '  ========================================' -ForegroundColor Green
+    Write-Host '  ========================================' -ForegroundColor Cyan
     Write-Host ''
 }
 

@@ -82,9 +82,9 @@ $AHK_PORTABLE_DIR = Join-Path $INSTALL_DIR 'ahk'
 
 function Write-Banner {
     Write-Host ''
-    Write-Host '  ========================================' -ForegroundColor Magenta
-    Write-Host '         xtkeys  .  Hotkeys Installer        ' -ForegroundColor Magenta
-    Write-Host '  ========================================' -ForegroundColor Magenta
+    Write-Host '  ========================================' -ForegroundColor Cyan
+    Write-Host '               xtkeys CLI                ' -ForegroundColor Cyan
+    Write-Host '  ========================================' -ForegroundColor Cyan
     Write-Host ''
 }
 function Set-SecureTls {
@@ -425,7 +425,7 @@ function Invoke-Uninstall {
 }
 function Invoke-Help {
     Write-Host ''
-    Write-Host '  xtkeys - Hotkeys Installer & CLI' -ForegroundColor Magenta
+    Write-Host '  xtkeys - Hotkeys Installer & CLI' -ForegroundColor Cyan
     Write-Host ''
     Write-Host '  Commands:' -ForegroundColor White
     Write-Host '    xtkeys status      Check if hotkeys are running'     -ForegroundColor Cyan
