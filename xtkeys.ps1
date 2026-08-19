@@ -57,8 +57,8 @@ if ($host.PrivateData) {
     try {
         $originalVerboseColor = $host.PrivateData.VerboseForegroundColor
         $originalWarningColor = $host.PrivateData.WarningForegroundColor
-        $host.PrivateData.VerboseForegroundColor = 'Cyan'
-        $host.PrivateData.WarningForegroundColor = 'Cyan'
+        $host.PrivateData.VerboseForegroundColor = 'Gray'
+        $host.PrivateData.WarningForegroundColor = 'White'
     } catch {}
 }
 
@@ -82,9 +82,9 @@ $AHK_PORTABLE_DIR = Join-Path $INSTALL_DIR 'ahk'
 
 function Write-Banner {
     Write-Host ''
-    Write-Host '  ========================================' -ForegroundColor Cyan
-    Write-Host '               xtkeys CLI                ' -ForegroundColor Cyan
-    Write-Host '  ========================================' -ForegroundColor Cyan
+    Write-Host '  ========================================' -ForegroundColor White
+    Write-Host '               xtkeys CLI                ' -ForegroundColor White
+    Write-Host '  ========================================' -ForegroundColor White
     Write-Host ''
 }
 function Set-SecureTls {
@@ -425,17 +425,17 @@ function Invoke-Uninstall {
 }
 function Invoke-Help {
     Write-Host ''
-    Write-Host '  xtkeys - Hotkeys Installer & CLI' -ForegroundColor Cyan
+    Write-Host '  xtkeys - Hotkeys Installer & CLI' -ForegroundColor White
     Write-Host ''
     Write-Host '  Commands:' -ForegroundColor White
-    Write-Host '    xtkeys status      Check if hotkeys are running'     -ForegroundColor Cyan
-    Write-Host '    xtkeys update      Download latest and restart'      -ForegroundColor Cyan
-    Write-Host '    xtkeys restart     Kill and re-launch hotkeys'       -ForegroundColor Cyan
-    Write-Host '    xtkeys uninstall   Remove everything cleanly'        -ForegroundColor Cyan
-    Write-Host '    xtkeys help        Show this help message'           -ForegroundColor Cyan
+    Write-Host '    xtkeys status      Check if hotkeys are running'     -ForegroundColor White
+    Write-Host '    xtkeys update      Download latest and restart'      -ForegroundColor White
+    Write-Host '    xtkeys restart     Kill and re-launch hotkeys'       -ForegroundColor White
+    Write-Host '    xtkeys uninstall   Remove everything cleanly'        -ForegroundColor White
+    Write-Host '    xtkeys help        Show this help message'           -ForegroundColor White
     Write-Host ''
     Write-Host '  Web install (any Windows machine):' -ForegroundColor White
-    Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex" -ForegroundColor DarkCyan
+    Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex" -ForegroundColor White
     Write-Host ''
 }
 
