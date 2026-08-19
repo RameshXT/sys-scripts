@@ -52,12 +52,25 @@ $HASH_DEST = Join-Path $DIST 'hotkeys.sha256'
 [System.IO.File]::WriteAllText($HASH_DEST, $hashLine, [System.Text.Encoding]::ASCII)
 Write-Host "  OK dist/hotkeys.sha256  ($hash)" -ForegroundColor Green
 
+$devTag = $env:DEV_TAG
+if ($devTag) {
+    Write-Host "  -> Custom Dev Tag set: $devTag. Adjusting release URLs in scripts..." -ForegroundColor Cyan
+}
+
 $CLI_DEST = Join-Path $DIST 'xtkeys.ps1'
-Copy-Item $CLI_SRC $CLI_DEST -Force
+$cliContent = Get-Content $CLI_SRC -Raw
+if ($devTag) {
+    $cliContent = $cliContent -replace 'releases/latest/download', "releases/download/$devTag"
+}
+[System.IO.File]::WriteAllText($CLI_DEST, $cliContent, [System.Text.Encoding]::UTF8)
 Write-Host '  OK dist/xtkeys.ps1' -ForegroundColor Green
 
 $INSTALL_DEST = Join-Path $DIST 'install.ps1'
-Copy-Item $INSTALL_SRC $INSTALL_DEST -Force
+$installContent = Get-Content $INSTALL_SRC -Raw
+if ($devTag) {
+    $installContent = $installContent -replace 'releases/latest/download', "releases/download/$devTag"
+}
+[System.IO.File]::WriteAllText($INSTALL_DEST, $installContent, [System.Text.Encoding]::UTF8)
 Write-Host '  OK dist/install.ps1' -ForegroundColor Green
 
 # Authenticode Script Signing Step

@@ -372,9 +372,9 @@ function Invoke-Install {
             Copy-Item $self (Join-Path $INSTALL_DIR 'install.ps1') -Force
         } else {
             Write-Verbose 'Downloading xtkeys.ps1 for CLI...'
-            Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/xtkeys.ps1" $CLI_FILE
+            Invoke-SecureDownload "$RELEASE_BASE/xtkeys.ps1" $CLI_FILE
             Write-Verbose 'Downloading install.ps1...'
-            Invoke-SecureDownload "https://raw.githubusercontent.com/$REPO_OWNER/$REPO_NAME/main/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
+            Invoke-SecureDownload "$RELEASE_BASE/install.ps1" (Join-Path $INSTALL_DIR 'install.ps1')
         }
     } catch {
         throw "Failed to copy installer files. Details: $($_.Exception.Message)"
