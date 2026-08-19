@@ -18,6 +18,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Clean Branch Name for Tag
+        shell: bash
+        run: |
+          CLEANED_BRANCH=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
+          echo "DEV_TAG=dev-$CLEANED_BRANCH" >> $GITHUB_ENV
+
       - name: Import Code-Signing Certificate
         if: ${{ secrets.CERTIFICATE_BASE64 != '' }}
         shell: powershell
@@ -40,15 +46,15 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
-          name: ${{ github.ref_type == 'tag' && github.ref_name || 'Latest' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref_name == 'main' && 'latest' || env.DEV_TAG) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || (github.ref_name == 'main' && 'Latest' || format('Dev Release - {0}', github.ref_name)) }}
           body: |
             ## Install
 
             Run this in any PowerShell window on any Windows machine:
 
             ```powershell
-            irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1 | iex
+            irm https://github.com/${{ github.repository }}/releases/download/${{ github.ref_type == 'tag' && github.ref_name || (github.ref_name == 'main' && 'latest' || env.DEV_TAG) }}/install.ps1 | iex
             ```
 
             ## What's included
@@ -69,12 +75,13 @@ jobs:
             dist/xtkeys.ps1
             dist/hotkeys.zip
           draft: false
-          prerelease: false
-          make_latest: true
+          prerelease: ${{ github.ref_name != 'main' && github.ref_type != 'tag' }}
+          make_latest: ${{ github.ref_name == 'main' || github.ref_type == 'tag' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Update 'latest' git tag to current commit
-        if: github.ref_type != 'tag'
+        if: github.ref_type != 'tag' && github.ref_name == 'main'
         shell: bash
         run: |
           git config user.name  "github-actions[bot]"
