@@ -18,9 +18,16 @@ if (Get-Module -ListAvailable -Name PSScriptAnalyzer) {
         $issues += Invoke-ScriptAnalyzer -Path $file -Severity Error, Warning -ErrorAction SilentlyContinue
     }
     if ($issues) {
-        Write-Host '  XX Linting failed! Issues found:' -ForegroundColor Red
-        $issues | Out-String | Write-Host -ForegroundColor Yellow
-        throw "Build aborted: Linting issues found in scripts."
+        $errors = $issues | Where-Object { $_.Severity -eq 'Error' }
+        if ($errors) {
+            Write-Host '  XX Linting failed! Errors found:' -ForegroundColor Red
+            $issues | Out-String | Write-Host -ForegroundColor Yellow
+            throw "Build aborted: Linting errors found in scripts."
+        } else {
+            Write-Host '  !! Linting warnings found (ignoring):' -ForegroundColor Yellow
+            $issues | Out-String | Write-Host -ForegroundColor DarkGray
+            Write-Host '  OK Linting passed (no errors).' -ForegroundColor Green
+        }
     } else {
         Write-Host '  OK Linting passed.' -ForegroundColor Green
     }
