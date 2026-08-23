@@ -30,6 +30,7 @@
 ; Ctrl + Shift + Alt + U   → Windows Update
 ; Ctrl + Shift + Alt + Del → Empty Recycle Bin
 ; Alt + Shift + V          → Paste path as WSL
+; Alt + Shift + R          → Git Clone Repo
 
 ; ====================[ Script Config & Variables ]====================
 #Requires AutoHotkey v2.0.26
@@ -45,9 +46,11 @@ try {
 }
 
 SetTimer WatchScript, 1000
+OnMessage(0x404, TrayClickHandler)
 
 USER_HOME := EnvGet("USERPROFILE")
 global DOUBLE_PRESS_DELAY := GetEnvInt("AHK_DOUBLE_PRESS_DELAY", 400)
+global g_lastClonedPath := ""
 global LOGS_DIR := USER_HOME . "\sys-scripts\logs"
 global LONG_PRESS_THRESHOLD := GetEnvInt("AHK_LONG_PRESS_THRESHOLD", 600)
 global ScriptModTime := ""
@@ -171,6 +174,103 @@ ExtractSelectedZip() {
         safeTargetDir := StrReplace(targetDir, "'", "''")
         guard := Wow64RedirectionGuard()
         Run(ResolveNativePath("powershell.exe") . " -NoProfile -Command `"Expand-Archive -Path '" . safeSelectedPath . "' -DestinationPath '" . safeTargetDir . "' -Force`"", , "Hide")
+    }
+}
+
+TrayClickHandler(wParam, lParam, msg, hwnd) {
+    if (lParam = 0x405) {
+        if (g_lastClonedPath != "" && DirExist(g_lastClonedPath))
+            Run(g_lastClonedPath)
+    }
+}
+
+CloneRepoFromClipboard() {
+    rawUrl := Trim(A_Clipboard, ' `t`n`r"')
+    if (rawUrl == "") {
+        TrayTip("Clipboard is not a valid SSH or HTTPS repo URL", "Git Clone", 2)
+        return
+    }
+
+    url := RegExReplace(rawUrl, "i)^\s*git\s+clone\s+", "")
+    url := Trim(url, ' `t`n`r"')
+
+    pattern := "i)^(?:git@[\w.-]+:[\w.-]+(?:/[\w.-]+)+(?:\.git)?/?|ssh://(?:git@)?[\w.-]+(?::\w+)?(?:/[\w.-]+)+(?:\.git)?/?|https?://(?:[\w.-]+@)?[\w.-]+(?::\w+)?(?:/[\w.-]+)+(?:\.git)?/?)$"
+    if !RegExMatch(url, pattern) {
+        TrayTip("Clipboard is not a valid SSH or HTTPS repo URL", "Git Clone", 2)
+        return
+    }
+
+    cleanUrl := RTrim(url, "/")
+    if (SubStr(cleanUrl, -4) = ".git")
+        cleanUrl := SubStr(cleanUrl, 1, -4)
+
+    repoName := ""
+    if (RegExMatch(cleanUrl, "([^/:]+)$", &m))
+        repoName := m[1]
+
+    if (repoName == "") {
+        TrayTip("Clipboard is not a valid SSH or HTTPS repo URL", "Git Clone", 2)
+        return
+    }
+
+    rootDrive := ""
+    for letter in StrSplit(DriveGetList()) {
+        if (StrUpper(letter) != "C") {
+            rootDrive := letter
+            break
+        }
+    }
+    if (rootDrive == "")
+        rootDrive := "C"
+
+    selectedFolder := DirSelect("*" . rootDrive . ":\", 3, "Select destination folder for " . repoName)
+    if (selectedFolder == "")
+        return
+
+    if (SubStr(selectedFolder, 1, 2) = "C:") {
+        TrayTip("C: drive is not allowed as a destination", "Git Clone", 2)
+        return
+    }
+
+    ExecuteGitClone(url, repoName, selectedFolder)
+}
+
+ExecuteGitClone(url, repoName, destBaseFolder) {
+    try {
+        if !DirExist(destBaseFolder)
+            DirCreate(destBaseFolder)
+    } catch as e {
+        TrayTip("Failed to create destination folder: " . destBaseFolder, "Git Clone", 2)
+        return
+    }
+
+    targetDir := destBaseFolder . "\" . repoName
+    if DirExist(targetDir) || FileExist(targetDir) {
+        TrayTip("Folder already exists: " . targetDir, "Git Clone", 2)
+        return
+    }
+
+    ; Disables 32-bit filesystem redirection on 64-bit systems for the duration of the clone operation (RAII)
+    guard := Wow64RedirectionGuard()
+    cmd := A_ComSpec . ' /c cd /d "' . destBaseFolder . '" && git clone "' . url . '"'
+    ToolTip("Cloning " . repoName . "...")
+    SetTimer RemoveToolTip, -TOOLTIP_DURATION_MS
+
+    exitCode := -1
+    try {
+        exitCode := RunWait(cmd, , "Hide")
+    } catch as e {
+        ToolTip()
+        TrayTip("Clone failed: " . repoName, "Git Clone", 2)
+        return
+    }
+
+    ToolTip()
+    if (exitCode = 0) {
+        global g_lastClonedPath := targetDir
+        TrayTip("Cloned " . repoName . " to " . targetDir, "Git Clone", 1)
+    } else {
+        TrayTip("Clone failed: " . repoName, "Git Clone", 2)
     }
 }
 
@@ -1208,6 +1308,9 @@ WatchScript() {
         Send("^v")
     }
 }
+
+!+r:: CloneRepoFromClipboard()
+
 
 
 !w:: {
