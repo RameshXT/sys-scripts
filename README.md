@@ -9,7 +9,7 @@
 Open **PowerShell** and run:
 
 ```powershell
-irm https://github.com/RameshXT/hotkeys/releases/latest/download/xtkeys.ps1 | iex
+irm https://github.com/RameshXT/hotkeys/releases/latest/download/install.ps1 | iex
 ```
 
 That's it. Hotkeys are active immediately. No admin rights needed.
