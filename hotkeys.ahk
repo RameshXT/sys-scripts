@@ -722,7 +722,6 @@ ShowTransientToolTip(message, durationMs := "") {
 }
 
 SetAudioOutput(deviceNameSubstr, targetVolume := "", friendlyNameOverride := "", micNameSubstr := "") {
-    global LAST_SURROUND_VOLUME
     deviceEnumerator := 0
     devicesCollection := 0
     try {
