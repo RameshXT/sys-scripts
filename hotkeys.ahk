@@ -165,7 +165,8 @@ ExtractSelectedZip() {
     if (fileExtension != "zip" && fileExtension != "ZIP")
         return
     targetDir := fileDir . "\" . nameNoExt . "\"
-    winrarPath := AppResolver.Get("WinRAR", "WinRAR.exe", ["%ProgramFiles%\WinRAR\WinRAR.exe", "%ProgramFiles(x86)%\WinRAR\WinRAR.exe"])
+    winrarPath := AppResolver.Get("WinRAR", "WinRAR.exe", ["%ProgramFiles%\WinRAR\WinRAR.exe",
+        "%ProgramFiles(x86)%\WinRAR\WinRAR.exe"])
     if FileExist(winrarPath) {
         guard := Wow64RedirectionGuard()
         Run('"' . winrarPath . '" x -o+ "' . selectedPath . '" "' . targetDir . '"')
@@ -173,7 +174,8 @@ ExtractSelectedZip() {
         safeSelectedPath := StrReplace(selectedPath, "'", "''")
         safeTargetDir := StrReplace(targetDir, "'", "''")
         guard := Wow64RedirectionGuard()
-        Run(ResolveNativePath("powershell.exe") . " -NoProfile -Command `"Expand-Archive -Path '" . safeSelectedPath . "' -DestinationPath '" . safeTargetDir . "' -Force`"", , "Hide")
+        Run(ResolveNativePath("powershell.exe") . " -NoProfile -Command `"Expand-Archive -Path '" . safeSelectedPath .
+        "' -DestinationPath '" . safeTargetDir . "' -Force`"", , "Hide")
     }
 }
 
@@ -182,6 +184,51 @@ TrayClickHandler(wParam, lParam, msg, hwnd) {
         if (g_lastClonedPath != "" && DirExist(g_lastClonedPath))
             Run(g_lastClonedPath)
     }
+}
+
+; Shows a folder-picker dialog rooted strictly at D:\ — nothing above it is visible.
+BrowseForFolderD(repoName) {
+    pidlRoot := 0
+    DllCall("shell32\SHParseDisplayName", "wstr", "D:\", "ptr", 0, "ptr*", &pidlRoot, "uint", 0, "uint*", 0)
+    if (!pidlRoot)
+        return ""
+
+    displayBuf := Buffer(520, 0)
+    titleStr := "Clone  ·  " . repoName
+    cb := CallbackCreate(BrowseForFolderCallback, "Fast", 4)
+    lpfnOffset := (A_PtrSize = 8) ? 40 : 20
+    lParamOffset := lpfnOffset + A_PtrSize
+
+    bi := Buffer(64, 0)
+    NumPut("ptr", 0, bi, 0)
+    NumPut("ptr", pidlRoot, bi, A_PtrSize)
+    NumPut("ptr", displayBuf.Ptr, bi, A_PtrSize * 2)
+    NumPut("ptr", 0, bi, A_PtrSize * 3)
+    NumPut("uint", 0x41, bi, A_PtrSize * 4)
+    NumPut("ptr", cb, bi, lpfnOffset)
+    NumPut("ptr", StrPtr(titleStr), bi, lParamOffset)
+
+    resultPidl := DllCall("shell32\SHBrowseForFolder", "ptr", bi.Ptr, "ptr")
+    DllCall("ole32\CoTaskMemFree", "ptr", pidlRoot)
+    CallbackFree(cb)
+
+    if (!resultPidl)
+        return ""
+
+    pathBuf := Buffer(520, 0)
+    DllCall("shell32\SHGetPathFromIDListW", "ptr", resultPidl, "ptr", pathBuf.Ptr)
+    DllCall("ole32\CoTaskMemFree", "ptr", resultPidl)
+
+    return StrGet(pathBuf, "UTF-16")
+}
+
+; Callback for SHBrowseForFolder: renames the title bar and brings the dialog to front.
+BrowseForFolderCallback(hwnd, msg, lParam, lpData) {
+    if (msg = 1) {
+        DllCall("SetWindowTextW", "ptr", hwnd, "ptr", lpData)
+        DllCall("SetForegroundWindow", "ptr", hwnd)
+    }
+    return 0
 }
 
 CloneRepoFromClipboard() {
@@ -194,7 +241,8 @@ CloneRepoFromClipboard() {
     url := RegExReplace(rawUrl, "i)^\s*git\s+clone\s+", "")
     url := Trim(url, ' `t`n`r"')
 
-    pattern := "i)^(?:git@[\w.-]+:[\w.-]+(?:/[\w.-]+)+(?:\.git)?/?|ssh://(?:git@)?[\w.-]+(?::\w+)?(?:/[\w.-]+)+(?:\.git)?/?|https?://(?:[\w.-]+@)?[\w.-]+(?::\w+)?(?:/[\w.-]+)+(?:\.git)?/?)$"
+    pattern :=
+        "i)^(?:git@[\w.-]+:[\w.-]+(?:/[\w.-]+)+(?:\.git)?/?|ssh://(?:git@)?[\w.-]+(?::\w+)?(?:/[\w.-]+)+(?:\.git)?/?|https?://(?:[\w.-]+@)?[\w.-]+(?::\w+)?(?:/[\w.-]+)+(?:\.git)?/?)$"
     if !RegExMatch(url, pattern) {
         TrayTip("Clipboard is not a valid SSH or HTTPS repo URL", "Git Clone", 2)
         return
@@ -213,24 +261,9 @@ CloneRepoFromClipboard() {
         return
     }
 
-    rootDrive := ""
-    for letter in StrSplit(DriveGetList()) {
-        if (StrUpper(letter) != "C") {
-            rootDrive := letter
-            break
-        }
-    }
-    if (rootDrive == "")
-        rootDrive := "C"
-
-    selectedFolder := DirSelect("*" . rootDrive . ":\", 3, "Select destination folder for " . repoName)
+    selectedFolder := BrowseForFolderD(repoName)
     if (selectedFolder == "")
         return
-
-    if (SubStr(selectedFolder, 1, 2) = "C:") {
-        TrayTip("C: drive is not allowed as a destination", "Git Clone", 2)
-        return
-    }
 
     ExecuteGitClone(url, repoName, selectedFolder)
 }
@@ -240,12 +273,14 @@ ExecuteGitClone(url, repoName, destBaseFolder) {
         if !DirExist(destBaseFolder)
             DirCreate(destBaseFolder)
     } catch as e {
+        global g_lastClonedPath := ""
         TrayTip("Failed to create destination folder: " . destBaseFolder, "Git Clone", 2)
         return
     }
 
     targetDir := destBaseFolder . "\" . repoName
     if DirExist(targetDir) || FileExist(targetDir) {
+        global g_lastClonedPath := ""
         TrayTip("Folder already exists: " . targetDir, "Git Clone", 2)
         return
     }
@@ -261,6 +296,7 @@ ExecuteGitClone(url, repoName, destBaseFolder) {
         exitCode := RunWait(cmd, , "Hide")
     } catch as e {
         ToolTip()
+        global g_lastClonedPath := ""
         TrayTip("Clone failed: " . repoName, "Git Clone", 2)
         return
     }
@@ -270,6 +306,7 @@ ExecuteGitClone(url, repoName, destBaseFolder) {
         global g_lastClonedPath := targetDir
         TrayTip("Cloned " . repoName . " to " . targetDir, "Git Clone", 1)
     } else {
+        global g_lastClonedPath := ""
         TrayTip("Clone failed: " . repoName, "Git Clone", 2)
     }
 }
@@ -545,7 +582,7 @@ LaunchAndMaximize(appPath, windowIdentifier := "", timeout := "", friendlyName :
         if WinWait(windowIdentifier, , timeout) {
             WinActivate
             WinMaximize
-            Loop 10 {
+            loop 10 {
                 if (WinGetMinMax() = 1)
                     break
                 WinMaximize
@@ -592,7 +629,7 @@ LaunchAndPosition(cmd, workingDir := "") {
     }
 
     targetHwnd := 0
-    Loop 30 {
+    loop 30 {
         if (pid != 0 && WinExist("ahk_pid " . pid)) {
             targetHwnd := WinExist("ahk_pid " . pid)
             break
@@ -725,7 +762,8 @@ SetAudioOutput(deviceNameSubstr, targetVolume := "", friendlyNameOverride := "",
     deviceEnumerator := 0
     devicesCollection := 0
     try {
-        deviceEnumerator := ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}", "{A95664D2-9614-4F35-A746-DE8DB63617E6}")
+        deviceEnumerator := ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}",
+            "{A95664D2-9614-4F35-A746-DE8DB63617E6}")
 
         ; 1. Switch Playback Device
         ComCall(3, deviceEnumerator, "int", 0, "uint", 1, "ptr*", &devicesCollection := 0)
@@ -748,7 +786,7 @@ SetAudioOutput(deviceNameSubstr, targetVolume := "", friendlyNameOverride := "",
             ObjRelease(defaultDevice)
         }
 
-        Loop count {
+        loop count {
             device := 0
             ComCall(4, devicesCollection, "uint", A_Index - 1, "ptr*", &device := 0)
 
@@ -825,7 +863,7 @@ SetAudioOutput(deviceNameSubstr, targetVolume := "", friendlyNameOverride := "",
                 ComCall(3, micsCollection, "uint*", &micCount)
 
                 micId := ""
-                Loop micCount {
+                loop micCount {
                     device := 0
                     ComCall(4, micsCollection, "uint", A_Index - 1, "ptr*", &device := 0)
 
@@ -925,7 +963,7 @@ TriggerScheduledTask(taskName, friendlyName, triggerFile := "", resultFile := ""
     if (resultFile == "")
         return
 
-    Loop (timeoutSec * 2) {
+    loop (timeoutSec * 2) {
         Sleep 500
         if FileExist(resultFile) {
             Sleep 200
@@ -992,7 +1030,8 @@ WatchScript() {
         "%StartMenuCommon%\Programs\Razer\7.1 Surround Sound.lnk"
     ])
     SplitPath razer71Path, , &razer71Dir
-    RunApp(razer71Path, "--url-params=apps=7.1-surround-sound --disable-background-timer-throttling", "7.1 Surround Sound", razer71Dir)
+    RunApp(razer71Path, "--url-params=apps=7.1-surround-sound --disable-background-timer-throttling",
+        "7.1 Surround Sound", razer71Dir)
 }
 
 !a:: {
@@ -1310,8 +1349,6 @@ WatchScript() {
 
 !+r:: CloneRepoFromClipboard()
 
-
-
 !w:: {
     whatsappPath := AppResolver.Get("WhatsApp", "", [
         "%AppData%\Microsoft\Windows\Start Menu\Programs\Chrome Apps\WhatsApp Web.lnk",
@@ -1349,7 +1386,8 @@ WatchScript() {
 }
 
 ^+!Delete:: {
-    result := MsgBox("Are you sure you want to permanently delete all items in the Recycle Bin?", "Empty Recycle Bin", 4)
+    result := MsgBox("Are you sure you want to permanently delete all items in the Recycle Bin?", "Empty Recycle Bin",
+        4)
     if (result = "Yes") {
         try {
             DllCall("shell32\SHEmptyRecycleBin", "Ptr", 0, "Ptr", 0, "UInt", 0x1)
