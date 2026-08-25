@@ -82,10 +82,6 @@ powershell -ExecutionPolicy Bypass -File .\xtkeys.ps1 install
 | **Ctrl + Shift + X** | Switch Audio | Set playback to **Black Shark V2** (mic: Black Shark) |
 | **Ctrl + Shift + Y** | Switch Audio | Set playback to **Resound** (mic: Sony) |
 | **Ctrl + Shift + Z** | Switch Audio | Set playback to **HEAT** (mic: Sony) |
-| **Ctrl + Shift + Alt + C** | Windows Cleanup | Runs background Windows Cleanup (tray notification on finish) |
-| **Ctrl + Shift + Alt + U** | Windows Updater | Runs background Windows Update check (tray notification on finish) |
-| **Ctrl + Shift + Alt + N** | Network Reset | Resets network adapters, flushes DNS, and renews IP |
-| **Ctrl + Shift + Alt + L** | Logs Folder | Opens the logs directory in File Explorer |
 | **Ctrl + Shift + Alt + Del** | Empty Recycle Bin | Empties the Recycle Bin (requires confirmation prompt) |
 
 ---

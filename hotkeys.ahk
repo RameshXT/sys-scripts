@@ -24,10 +24,6 @@
 ; Ctrl + Shift + X         → Switch to Black Shark V2
 ; Ctrl + Shift + Y         → Switch to Resound
 ; Ctrl + Shift + Z         → Switch to HEAT
-; Ctrl + Shift + Alt + C   → Cleanup
-; Ctrl + Shift + Alt + L   → Logs
-; Ctrl + Shift + Alt + N   → Network Reset
-; Ctrl + Shift + Alt + U   → Windows Update
 ; Ctrl + Shift + Alt + Del → Empty Recycle Bin
 ; Alt + Shift + V          → Paste path as WSL
 ; Alt + Shift + R          → Git Clone Repo
@@ -939,26 +935,6 @@ TriggerScheduledTask(taskName, friendlyName, triggerFile := "", resultFile := ""
         return
     }
 
-    DeleteFileIfExists(resultFile)
-
-    if (triggerFile != "") {
-        DeleteFileIfExists(triggerFile)
-        try
-            FileAppend("hotkey", triggerFile)
-        catch as e {
-            ShowLaunchError("Failed to write trigger file", e)
-            return
-        }
-    }
-
-    guard := Wow64RedirectionGuard()
-    try {
-        Run('schtasks.exe /Run /TN "' . taskName . '" /I', , "Hide")
-        ShowTransientToolTip(friendlyName . " in progress...")
-    } catch as e {
-        ShowLaunchError("Failed to trigger " . friendlyName, e)
-        return
-    }
 
     if (resultFile == "")
         return
@@ -1379,12 +1355,6 @@ WatchScript() {
 
 !z:: ExtractSelectedZip()
 
-^+!c:: {
-    TriggerScheduledTask("WindowsCleanup", "Cleanup"
-        , USER_HOME . "\sys-scripts\cleanup\cleanup_trigger.txt"
-        , USER_HOME . "\sys-scripts\cleanup\cleanup_result.txt", 60)
-}
-
 ^+!Delete:: {
     result := MsgBox("Are you sure you want to permanently delete all items in the Recycle Bin?", "Empty Recycle Bin",
         4)
@@ -1396,39 +1366,6 @@ WatchScript() {
             ShowLaunchError("Failed to empty Recycle Bin", e)
         }
     }
-}
-
-^+!l:: {
-    if !FileExist(LOGS_DIR) {
-        ShowTransientToolTip("Logs folder not found: " . LOGS_DIR)
-        return
-    }
-    guard := Wow64RedirectionGuard()
-    try
-        Run('explorer.exe "' . LOGS_DIR . '"')
-    catch as e
-        ShowLaunchError("Failed to open logs folder", e)
-}
-
-^+!n:: {
-    TriggerScheduledTask("NetworkReset", "Network Reset"
-        , ""
-        , USER_HOME . "\sys-scripts\network\netreset_result.txt", 90)
-}
-
-^+!u:: {
-    today := FormatTime(, "yyyy-MM-dd")
-    try
-        lastRun := FileRead(USER_HOME . "\sys-scripts\update\update_lastrun.txt")
-    catch
-        lastRun := ""
-    if (Trim(lastRun) = today) {
-        ShowTransientToolTip("Update already completed today")
-        return
-    }
-    TriggerScheduledTask("WindowsUpdater", "Update"
-        , USER_HOME . "\sys-scripts\update\update_trigger.txt"
-        , USER_HOME . "\sys-scripts\update\update_result.txt", 180)
 }
 
 ^+q:: SetAudioOutput(AUDIO_DEVICE_1, 25, "Sony MDRX-50", AUDIO_MIC_1)
