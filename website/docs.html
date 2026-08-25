@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XT KEYS - Keybindings</title>
+  <link rel="icon" href="data:,">
+  <meta name="description" content="Reference guide for XTKEYS hotkeys.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .key-row {
+      display: flex;
+      padding: 1.5rem 0;
+    }
+    .key-cmd {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      font-weight: bold;
+      flex: 0 0 280px;
+      color: var(--accent);
+    }
+    .key-desc {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .key-desc strong {
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+    @media (max-width: 600px) {
+      .key-row {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .key-cmd {
+        flex: auto;
+      }
+    }
+    .nav-links {
+      display: flex;
+      gap: 1rem;
+      justify-content: flex-start;
+      padding-bottom: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="section border-bottom">
+      <div class="nav-links">
+        <a href="index.html" style="color: var(--text-secondary); font-weight: bold; text-decoration: none; letter-spacing: 0.1em; font-size: 0.9rem;">&larr; BACK TO HOME</a>
+      </div>
+      <h1>KEYBINDINGS</h1>
+      <p class="subtitle">REFERENCE GUIDE FOR XTKEYS</p>
+    </header>
+
+    <section class="section border-bottom">
+      <div class="cli-header">
+        <h2>APPLICATION & UTILITY</h2>
+      </div>
+      <div class="cli-table">
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + 0</div>
+          <div class="key-desc">Calculator</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + 1</div>
+          <div class="key-desc">
+            <div><strong>Double Press:</strong> Photoshop</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + 7</div>
+          <div class="key-desc">7.1 Surround Sound</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + A</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> Antigravity IDE</div>
+            <div><strong>Double Press:</strong> Open in active Explorer folder</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + C</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> Google Chrome</div>
+            <div><strong>Hold >600ms:</strong> Incognito Mode</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + E</div>
+          <div class="key-desc">Outlook (Auto-Maximize)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + G</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> Git Bash</div>
+            <div><strong>Double Press:</strong> Open in active Explorer folder</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + I</div>
+          <div class="key-desc">Instagram (Auto-Maximize)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + M</div>
+          <div class="key-desc">Microsoft Store</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + N</div>
+          <div class="key-desc">Notepad</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + O</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> Command Prompt (CMD)</div>
+            <div><strong>Double Press:</strong> Open in active Explorer folder / Admin CMD (if no folder active)</div>
+            <div><strong>Hold >600ms:</strong> Admin CMD in Folder</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + P</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> PowerShell</div>
+            <div><strong>Double Press:</strong> Open in active Explorer folder / Admin PowerShell (if no folder active)</div>
+            <div><strong>Hold >600ms:</strong> Admin PowerShell in Folder</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + Q</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> Close Active Window</div>
+            <div><strong>Hold:</strong> Continuous safe window close</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + S</div>
+          <div class="key-desc">Slack (Auto-Maximize)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + T</div>
+          <div class="key-desc">Telegram</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + U</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> Ubuntu WSL</div>
+            <div><strong>Double Press:</strong> Open in active Explorer folder</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + V</div>
+          <div class="key-desc">
+            <div><strong>Single Press:</strong> VS Code</div>
+            <div><strong>Double Press:</strong> Open in active Explorer folder</div>
+          </div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + Shift + V</div>
+          <div class="key-desc">Paste clipboard path as WSL</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + W</div>
+          <div class="key-desc">WhatsApp (Auto-Maximize)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Alt + Y</div>
+          <div class="key-desc">YouTube (Auto-Maximize)</div>
+        </div>
+        <div class="key-row">
+          <div class="key-cmd">Alt + Z</div>
+          <div class="key-desc">Unzip Selected ZIP</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section border-bottom">
+      <div class="cli-header">
+        <h2>SYSTEM & MEDIA</h2>
+      </div>
+      <div class="cli-table">
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Q</div>
+          <div class="key-desc">Set playback to <strong>Sony MDRX-50</strong> and volume to 25%</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + X</div>
+          <div class="key-desc">Set playback to <strong>Black Shark V2</strong></div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Y</div>
+          <div class="key-desc">Set playback to <strong>Resound</strong></div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Z</div>
+          <div class="key-desc">Set playback to <strong>HEAT</strong></div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Alt + C</div>
+          <div class="key-desc">Windows Cleanup (runs in background)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Alt + U</div>
+          <div class="key-desc">Windows Updater (runs in background)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Alt + N</div>
+          <div class="key-desc">Network Reset (adapters, DNS, IP)</div>
+        </div>
+        <div class="key-row border-bottom">
+          <div class="key-cmd">Ctrl + Shift + Alt + L</div>
+          <div class="key-desc">Opens the logs directory in File Explorer</div>
+        </div>
+        <div class="key-row">
+          <div class="key-cmd">Ctrl + Shift + Alt + Del</div>
+          <div class="key-desc">Empty Recycle Bin</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="section">
+    <a href="https://github.com/RameshXT/hotkeys" target="_blank">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path>
+      </svg>
+      GITHUB REPOSITORY
+    </a>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
