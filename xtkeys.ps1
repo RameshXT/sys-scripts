@@ -54,7 +54,7 @@
 [OutputType([void])]
 param(
     [Parameter(Mandatory = $false, Position = 0)]
-    [ValidateSet('status', 'update', 'restart', 'uninstall', 'install', 'help', 'default')]
+    [ValidateSet('status', 'update', 'restart', 'uninstall', 'install', 'help', 'default', 'serve')]
     [string]$Command = 'default',
 
     [Parameter(Mandatory = $false)]
@@ -767,11 +767,136 @@ function Invoke-Help {
     Write-Host '    xtkeys restart     Kill and re-launch hotkeys'       -ForegroundColor Cyan
     Write-Host '    xtkeys uninstall   Remove everything cleanly'        -ForegroundColor Cyan
     Write-Host '    xtkeys install     Install or reinstall hotkeys'     -ForegroundColor Cyan
+    Write-Host '    xtkeys serve       Start local API for app detection' -ForegroundColor Cyan
     Write-Host '    xtkeys help        Show this help message'           -ForegroundColor Cyan
     Write-Host ''
     Write-Host '  Web install (any Windows machine):' -ForegroundColor White
     Write-Host "    irm https://github.com/$REPO_OWNER/$REPO_NAME/releases/latest/download/install.ps1 | iex" -ForegroundColor DarkCyan
     Write-Host ''
+}
+
+function Send-JsonResponse ([System.Net.HttpListenerContext]$ctx, [string]$body, [int]$status = 200) {
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+    $ctx.Response.StatusCode = $status
+    $ctx.Response.ContentType = 'application/json; charset=utf-8'
+    $ctx.Response.Headers.Add('Access-Control-Allow-Origin', '*')
+    $ctx.Response.Headers.Add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+    $ctx.Response.ContentLength64 = $bytes.Length
+    $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
+    $ctx.Response.OutputStream.Close()
+}
+
+function Search-InstalledApps ([string]$query) {
+    $results = [System.Collections.Generic.List[hashtable]]::new()
+    $seen    = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    $regPaths = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    foreach ($path in $regPaths) {
+        try {
+            Get-ItemProperty $path -ErrorAction SilentlyContinue | ForEach-Object {
+                $name = $_.DisplayName
+                $loc  = $_.InstallLocation
+                if (-not $name -or $name -notmatch [regex]::Escape($query)) { return }
+                if ($loc -and (Test-Path $loc)) {
+                    $exe = Get-ChildItem $loc -Filter '*.exe' -Depth 1 -ErrorAction SilentlyContinue |
+                           Where-Object { $_.Name -notmatch 'unins|setup|update|crash|helper' } |
+                           Sort-Object Length -Descending | Select-Object -First 1
+                    if ($exe -and $seen.Add($exe.FullName)) {
+                        $results.Add(@{ name = $name; path = $exe.FullName })
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    $scanDirs = @(
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        (Join-Path $env:LOCALAPPDATA 'Programs')
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    foreach ($dir in $scanDirs) {
+        try {
+            Get-ChildItem $dir -Directory -ErrorAction SilentlyContinue | Where-Object {
+                $_.Name -match [regex]::Escape($query)
+            } | ForEach-Object {
+                $exe = Get-ChildItem $_.FullName -Filter '*.exe' -Depth 1 -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Name -notmatch 'unins|setup|update|crash|helper' } |
+                       Sort-Object Length -Descending | Select-Object -First 1
+                if ($exe -and $seen.Add($exe.FullName)) {
+                    $results.Add(@{ name = $_.Name; path = $exe.FullName })
+                }
+            }
+        } catch {}
+    }
+
+    return $results | Select-Object -First 15
+}
+
+function Invoke-Serve {
+    $port   = 7878
+    $prefix = "http://localhost:$port/"
+
+    Add-Type -AssemblyName System.Web -ErrorAction SilentlyContinue
+
+    $listener = [System.Net.HttpListener]::new()
+    $listener.Prefixes.Add($prefix)
+
+    try {
+        $listener.Start()
+        Write-Host ''
+        Write-Host "  xtkeys serve  -  listening on $prefix" -ForegroundColor Green
+        Write-Host '  Open the XT KEYS customizer in your browser and live app detection will activate.' -ForegroundColor Cyan
+        Write-Host '  Press Ctrl+C to stop.' -ForegroundColor DarkGray
+        Write-Host ''
+
+        while ($listener.IsListening) {
+            $ctx = $listener.GetContext()
+            $req = $ctx.Request
+            $url = $req.Url
+
+            if ($req.HttpMethod -eq 'OPTIONS') {
+                $ctx.Response.Headers.Add('Access-Control-Allow-Origin', '*')
+                $ctx.Response.Headers.Add('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                $ctx.Response.StatusCode = 204
+                $ctx.Response.OutputStream.Close()
+                continue
+            }
+
+            $path = $url.AbsolutePath
+
+            if ($path -eq '/ping') {
+                Send-JsonResponse $ctx '{"ok":true}'
+            }
+            elseif ($path -eq '/apps') {
+                $qs = [System.Web.HttpUtility]::ParseQueryString($url.Query)
+                $q  = $qs['q']
+                if (-not $q -or $q.Trim().Length -lt 1) {
+                    Send-JsonResponse $ctx '{"apps":[]}'
+                } else {
+                    $apps  = Search-InstalledApps $q.Trim()
+                    $items = $apps | ForEach-Object {
+                        [PSCustomObject]@{ name = $_.name; path = $_.path }
+                    }
+                    $json  = [PSCustomObject]@{ apps = @($items) } | ConvertTo-Json -Compress -Depth 3
+                    Send-JsonResponse $ctx $json
+                }
+            }
+            else {
+                Send-JsonResponse $ctx '{"error":"not found"}' 404
+            }
+        }
+    } catch [System.Net.HttpListenerException] {
+        # Ctrl+C — clean exit
+    } finally {
+        if ($listener.IsListening) { $listener.Stop() }
+        $listener.Close()
+        Write-Host '  xtkeys serve stopped.' -ForegroundColor DarkGray
+    }
 }
 
 try {
@@ -788,6 +913,7 @@ try {
         'update'    { Invoke-Update }
         'restart'   { Invoke-Restart }
         'uninstall' { Invoke-Uninstall }
+        'serve'     { Invoke-Serve }
         'help'      { Invoke-Help }
         Default {
             throw "Invalid command received: $Command"

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XT KEYS — Customize</title>
+  <meta name="description" content="Visually customize your hotkeys. Pick keys, assign apps, and generate your personal install command.">
+  <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
+  <link rel="manifest" href="favicon_io/site.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="customize.css">
+</head>
+<body>
+
+  <div id="os-warning" class="os-warning" style="display:none;">
+    <span>⚠️</span>
+    <span>XT KEYS is <strong>Windows only</strong>. This configurator generates AutoHotkey scripts that only run on Windows.</span>
+    <button id="os-warning-close">DISMISS</button>
+  </div>
+
+  <main>
+    <nav class="section border-bottom nav-row">
+      <a href="index.html" class="nav-back">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 5 5 12 12 19"></polyline></svg>
+        BACK
+      </a>
+      <span class="nav-title">CUSTOMIZE</span>
+      <div class="nav-right">
+        <span id="server-indicator" class="server-indicator offline" title="xtkeys serve not running">●</span>
+        <span id="server-label" class="server-label">OFFLINE</span>
+      </div>
+    </nav>
+
+    <header class="section border-bottom">
+      <h1>CONFIGURE<br>YOUR KEYS</h1>
+      <p class="subtitle">PICK ANY KEY · ASSIGN ANY APP · GET YOUR INSTALL COMMAND</p>
+    </header>
+
+    <section class="section border-bottom grid-3">
+      <div class="card border-right">
+        <h3>01 / PICK KEYS</h3>
+        <p>Choose modifier + key combos from the table. Each row is one hotkey slot.</p>
+      </div>
+      <div class="card border-right">
+        <h3>02 / ASSIGN APPS</h3>
+        <p>Type an app name. If <code>xtkeys serve</code> is running, paths are auto-detected from your system.</p>
+      </div>
+      <div class="card">
+        <h3>03 / GET COMMAND</h3>
+        <p>Copy the generated PowerShell command and run it — your custom hotkeys go live instantly.</p>
+      </div>
+    </section>
+
+    <section class="section border-bottom" id="how-to-serve">
+      <div class="explainer-header" id="explainer-toggle">
+        <h2>ENABLE LIVE APP DETECTION</h2>
+        <svg class="explainer-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+      <div class="explainer-body" id="explainer-body">
+        <p class="explainer-desc">Run this command in PowerShell to start the local API server. It allows this page to search your installed apps in real-time.</p>
+        <div class="flex-row border-top" style="margin-top:1.5rem;">
+          <div class="terminal-box">
+            <span class="prompt">PS&gt;</span>
+            <span class="command" id="serve-cmd">xtkeys serve</span>
+          </div>
+          <button class="copy-btn" id="copy-serve-btn">COPY</button>
+        </div>
+        <p class="explainer-note">Without the server, you can still manually enter app paths and download your script.</p>
+      </div>
+    </section>
+
+    <section class="section border-bottom">
+      <div class="table-header">
+        <h2>HOTKEY BINDINGS</h2>
+        <div class="table-actions">
+          <button class="action-btn" id="reset-btn">RESET DEFAULTS</button>
+          <button class="action-btn" id="clear-btn">CLEAR ALL</button>
+          <button class="action-btn accent-btn" id="add-row-btn">+ ADD ROW</button>
+        </div>
+      </div>
+      <div class="hk-table" id="hk-table">
+        <div class="hk-header">
+          <div class="hk-col-mod">MODIFIER</div>
+          <div class="hk-col-key">KEY</div>
+          <div class="hk-col-app">APPLICATION / COMMAND</div>
+          <div class="hk-col-desc">LABEL</div>
+          <div class="hk-col-del"></div>
+        </div>
+        <div id="hk-rows"></div>
+      </div>
+    </section>
+
+    <section class="section border-bottom">
+      <div class="table-header">
+        <h2>GENERATED COMMAND</h2>
+        <button class="action-btn accent-btn" id="generate-btn">GENERATE</button>
+      </div>
+      <div class="output-block" id="output-block">
+        <div class="output-scroll" id="output-scroll">
+          <span class="prompt">PS&gt;</span>
+          <span class="output-cmd" id="output-cmd">Click GENERATE to build your install command.</span>
+        </div>
+        <button class="copy-btn output-copy" id="copy-output-btn" disabled>COPY</button>
+      </div>
+      <div class="output-sub-actions">
+        <button class="action-btn" id="download-ahk-btn">DOWNLOAD .AHK</button>
+        <button class="action-btn" id="download-json-btn">DOWNLOAD CONFIG JSON</button>
+        <button class="action-btn" id="import-json-btn">IMPORT CONFIG</button>
+        <input type="file" id="import-file-input" accept=".json" style="display:none;">
+      </div>
+    </section>
+
+
+
+  </main>
+
+  <footer class="section">
+    <a href="https://github.com/RameshXT/hotkeys" target="_blank">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+      GITHUB REPOSITORY
+    </a>
+  </footer>
+
+  <div class="app-dropdown" id="app-dropdown" style="display:none;">
+    <div class="app-dropdown-list" id="app-dropdown-list"></div>
+    <div class="app-dropdown-status" id="app-dropdown-status"></div>
+  </div>
+
+  <script src="customize.js"></script>
+</body>
+</html>
